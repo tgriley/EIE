@@ -14,10 +14,10 @@ namespace DCM.Core.World
         public const int Exit   = 9;
     }
 
-    public class Map
+    public class Map : IMap
     {
-        public readonly int Width;
-        public readonly int Height;
+        public int Width  { get; }
+        public int Height { get; }
         private readonly int[,] _tiles;
 
         // Player start position (tile coords)

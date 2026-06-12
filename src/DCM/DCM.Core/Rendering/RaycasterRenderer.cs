@@ -1,3 +1,4 @@
+#nullable enable
 using DCM.Core.Entities;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
@@ -98,14 +99,14 @@ namespace DCM.Core.Rendering
 
         // ── Main render entry ─────────────────────────────────────────────────
 
-        public void Render(GameTime gameTime, Player player, Map map, List<Enemy> enemies)
+        public void Render(GameTime gameTime, ICamera camera, IMap map, List<Enemy> enemies)
         {
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            DrawCeiling(player);
-            DrawFloor(player);
-            CastWalls(player, map);
-            RenderEnemies(player, enemies);
+            DrawCeiling(camera);
+            DrawFloor(camera);
+            CastWalls(camera, map);
+            RenderEnemies(camera, enemies);
 
             // Upload frame buffer
             _fbTex.SetData(_fb);
@@ -135,14 +136,14 @@ namespace DCM.Core.Rendering
         /// For each row above the horizon, compute the real-world position and
         /// sample the ceiling texture with distance fog.
         /// </summary>
-        private void DrawCeiling(Player player)
+        private void DrawCeiling(ICamera camera)
         {
             int half = RH / 2;
 
-            double rayDirX0 = player.DirX - player.PlaneX;
-            double rayDirY0 = player.DirY - player.PlaneY;
-            double rayDirX1 = player.DirX + player.PlaneX;
-            double rayDirY1 = player.DirY + player.PlaneY;
+            double rayDirX0 = camera.DirX - camera.PlaneX;
+            double rayDirY0 = camera.DirY - camera.PlaneY;
+            double rayDirX1 = camera.DirX + camera.PlaneX;
+            double rayDirY1 = camera.DirY + camera.PlaneY;
 
             for (int y = 0; y < half; y++)
             {
@@ -154,8 +155,8 @@ namespace DCM.Core.Rendering
                 double stepX = rowDist * (rayDirX1 - rayDirX0) / RW;
                 double stepY = rowDist * (rayDirY1 - rayDirY0) / RW;
 
-                double floorX = player.PosX + rowDist * rayDirX0;
-                double floorY = player.PosY + rowDist * rayDirY0;
+                double floorX = camera.PosX + rowDist * rayDirX0;
+                double floorY = camera.PosY + rowDist * rayDirY0;
 
                 float fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (FogEnd - FogStart), 0, 1);
 
@@ -186,15 +187,15 @@ namespace DCM.Core.Rendering
         /// For each row below the horizon, compute the real-world floor position
         /// each pixel maps to, sample the floor texture, and apply distance fog.
         /// </summary>
-        private void DrawFloor(Player player)
+        private void DrawFloor(ICamera camera)
         {
             int half = RH / 2;
 
             // Camera-space edge ray directions
-            double rayDirX0 = player.DirX - player.PlaneX;
-            double rayDirY0 = player.DirY - player.PlaneY;
-            double rayDirX1 = player.DirX + player.PlaneX;
-            double rayDirY1 = player.DirY + player.PlaneY;
+            double rayDirX0 = camera.DirX - camera.PlaneX;
+            double rayDirY0 = camera.DirY - camera.PlaneY;
+            double rayDirX1 = camera.DirX + camera.PlaneX;
+            double rayDirY1 = camera.DirY + camera.PlaneY;
 
             for (int y = half; y < RH; y++)
             {
@@ -209,8 +210,8 @@ namespace DCM.Core.Rendering
                 double stepY = rowDist * (rayDirY1 - rayDirY0) / RW;
 
                 // World-space position of the leftmost pixel
-                double floorX = player.PosX + rowDist * rayDirX0;
-                double floorY = player.PosY + rowDist * rayDirY0;
+                double floorX = camera.PosX + rowDist * rayDirX0;
+                double floorY = camera.PosY + rowDist * rayDirY0;
 
                 // Distance fog (same range as wall fog for consistency)
                 float fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (FogEnd - FogStart), 0, 1);
@@ -240,7 +241,7 @@ namespace DCM.Core.Rendering
 
         // ── DDA wall casting ──────────────────────────────────────────────────
 
-        private void CastWalls(Player player, Map map)
+        private void CastWalls(ICamera camera, IMap map)
         {
             int texSzW = _wallTexW;
             int texSzH = _wallTexH;
@@ -250,11 +251,11 @@ namespace DCM.Core.Rendering
                 // Camera-space X: -1 (left) to +1 (right)
                 double camX = 2.0 * col / RW - 1.0;
 
-                double rayDX = player.DirX + player.PlaneX * camX;
-                double rayDY = player.DirY + player.PlaneY * camX;
+                double rayDX = camera.DirX + camera.PlaneX * camX;
+                double rayDY = camera.DirY + camera.PlaneY * camX;
 
-                int mapX = (int)player.PosX;
-                int mapY = (int)player.PosY;
+                int mapX = (int)camera.PosX;
+                int mapY = (int)camera.PosY;
 
                 // Avoid division by zero
                 double deltaDX = rayDX == 0 ? double.MaxValue : Math.Abs(1.0 / rayDX);
@@ -263,11 +264,11 @@ namespace DCM.Core.Rendering
                 int stepX, stepY;
                 double sideX, sideY;
 
-                if (rayDX < 0) { stepX = -1; sideX = (player.PosX - mapX) * deltaDX; }
-                else           { stepX =  1; sideX = (mapX + 1.0 - player.PosX) * deltaDX; }
+                if (rayDX < 0) { stepX = -1; sideX = (camera.PosX - mapX) * deltaDX; }
+                else           { stepX =  1; sideX = (mapX + 1.0 - camera.PosX) * deltaDX; }
 
-                if (rayDY < 0) { stepY = -1; sideY = (player.PosY - mapY) * deltaDY; }
-                else           { stepY =  1; sideY = (mapY + 1.0 - player.PosY) * deltaDY; }
+                if (rayDY < 0) { stepY = -1; sideY = (camera.PosY - mapY) * deltaDY; }
+                else           { stepY =  1; sideY = (mapY + 1.0 - camera.PosY) * deltaDY; }
 
                 // DDA loop
                 int side = 0;
@@ -293,8 +294,8 @@ namespace DCM.Core.Rendering
 
                 // Texture X coordinate (where did the ray hit the wall face?)
                 double wallX = side == 0
-                    ? player.PosY + perpDist * rayDY
-                    : player.PosX + perpDist * rayDX;
+                    ? camera.PosY + perpDist * rayDY
+                    : camera.PosX + perpDist * rayDX;
                 wallX -= Math.Floor(wallX);
                 int texX = (int)(wallX * texSzW);
                 if ((side == 0 && rayDX > 0) || (side == 1 && rayDY < 0))
@@ -333,12 +334,12 @@ namespace DCM.Core.Rendering
 
         // ── Enemy sprite rendering ────────────────────────────────────────────
 
-        private void RenderEnemies(Player player, List<Enemy> enemies)
+        private void RenderEnemies(ICamera camera, List<Enemy> enemies)
         {
             // Sort farthest-first so nearer enemies overdraw distant ones
             foreach (var e in enemies)
-                e.DistSq = (e.PosX - player.PosX) * (e.PosX - player.PosX) +
-                           (e.PosY - player.PosY) * (e.PosY - player.PosY);
+                e.DistSq = (e.PosX - camera.PosX) * (e.PosX - camera.PosX) +
+                           (e.PosY - camera.PosY) * (e.PosY - camera.PosY);
 
             var sorted = new List<Enemy>(enemies);
             sorted.Sort((a, b) => b.DistSq.CompareTo(a.DistSq));
@@ -346,19 +347,19 @@ namespace DCM.Core.Rendering
             foreach (var e in sorted)
             {
                 if (e.IsDead) continue;
-                DrawEnemy(player, e);
+                DrawEnemy(camera, e);
             }
         }
 
-        private void DrawEnemy(Player player, Enemy enemy)
+        private void DrawEnemy(ICamera camera, Enemy enemy)
         {
-            double relX = enemy.PosX - player.PosX;
-            double relY = enemy.PosY - player.PosY;
+            double relX = enemy.PosX - camera.PosX;
+            double relY = enemy.PosY - camera.PosY;
 
             // Camera-space transform (inverse of view matrix)
-            double invDet = 1.0 / (player.PlaneX * player.DirY - player.DirX * player.PlaneY);
-            double transX = invDet * ( player.DirY * relX - player.DirX * relY);
-            double transY = invDet * (-player.PlaneY * relX + player.PlaneX * relY);
+            double invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
+            double transX = invDet * ( camera.DirY * relX - camera.DirX * relY);
+            double transY = invDet * (-camera.PlaneY * relX + camera.PlaneX * relY);
 
             if (transY <= 0.05) return; // behind player
 
@@ -415,7 +416,7 @@ namespace DCM.Core.Rendering
         /// Returns the closest enemy that the center crosshair ray hits,
         /// within the given range. Call this when the player fires.
         /// </summary>
-        public Enemy? RaycastShoot(Player player, List<Enemy> enemies, double maxRange = 6.0)
+        public Enemy? RaycastShoot(ICamera camera, List<Enemy> enemies, double maxRange = 6.0)
         {
             // Find which enemy is closest to the center column
             Enemy? best = null;
@@ -425,12 +426,12 @@ namespace DCM.Core.Rendering
             {
                 if (e.IsDead) continue;
 
-                double relX = e.PosX - player.PosX;
-                double relY = e.PosY - player.PosY;
+                double relX = e.PosX - camera.PosX;
+                double relY = e.PosY - camera.PosY;
 
-                double invDet = 1.0 / (player.PlaneX * player.DirY - player.DirX * player.PlaneY);
-                double transX = invDet * ( player.DirY * relX - player.DirX * relY);
-                double transY = invDet * (-player.PlaneY * relX + player.PlaneX * relY);
+                double invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
+                double transX = invDet * ( camera.DirY * relX - camera.DirX * relY);
+                double transY = invDet * (-camera.PlaneY * relX + camera.PlaneX * relY);
 
                 if (transY <= 0.1 || transY > maxRange) continue;
 

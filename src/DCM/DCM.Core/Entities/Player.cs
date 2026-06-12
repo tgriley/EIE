@@ -1,41 +1,30 @@
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
+using DCM.Core.Input;
+using DCM.Core.World;
 using System;
 
 namespace DCM.Core.Entities
 {
-    public class Player
+    public class Player : ICamera, IDamageable
     {
-        // World position
-        public double PosX { get; set; }
-        public double PosY { get; set; }
-
-        // Direction vector (unit length)
-        public double DirX { get; private set; }
-        public double DirY { get; private set; }
-
-        // Camera plane (perpendicular to dir, length controls FOV ~66°)
+        public double PosX   { get; set; }
+        public double PosY   { get; set; }
+        public double DirX   { get; private set; }
+        public double DirY   { get; private set; }
         public double PlaneX { get; private set; }
         public double PlaneY { get; private set; }
 
-        public int Health { get; private set; } = 100;
-        public bool IsDead => Health <= 0;
+        public int   Health     { get; private set; } = 100;
+        public bool  IsDead     => Health <= 0;
+        public float HurtTimer  { get; private set; } = 0f;
+        public bool  ReachedExit { get; private set; }
 
-        // Hurt flash state
-        public float HurtTimer { get; private set; } = 0f;
         private float _attackCooldown = 0f;
         private float _damageCooldown = 0f;
 
-        // Track whether we just entered the exit tile
-        public bool ReachedExit { get; private set; }
-
-        private const double MoveSpeed  = 2.8;
-        private const double RunSpeed   = 4.5;
-        private const double TurnSpeed  = 2.0;
-        private const double MouseSens  = 0.0015;
-
-        private int _prevMouseX;
-        private bool _firstFrame = true;
+        private const double MoveSpeed = 2.8;
+        private const double RunSpeed  = 4.5;
+        private const double TurnSpeed = 2.0;
+        private const double MouseSens = 0.0015;
 
         public Player(double posX, double posY, double angle)
         {
@@ -52,85 +41,41 @@ namespace DCM.Core.Entities
             PlaneY =  Math.Cos(angle) * 0.66;
         }
 
-        // Rotate direction and camera plane by radians
         private void Rotate(double rad)
         {
-            double cosR = Math.Cos(rad);
-            double sinR = Math.Sin(rad);
-
+            double cosR = Math.Cos(rad), sinR = Math.Sin(rad);
             double oldDirX = DirX;
             DirX   = DirX   * cosR - DirY   * sinR;
             DirY   = oldDirX * sinR + DirY   * cosR;
-
             double oldPlaneX = PlaneX;
             PlaneX = PlaneX * cosR - PlaneY * sinR;
             PlaneY = oldPlaneX * sinR + PlaneY * cosR;
         }
 
-        public void Update(GameTime gameTime, World.Map map, Point windowCenter)
+        public void Update(float dt, IMap map, PlayerInput input)
         {
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            var kb    = Keyboard.GetState();
-            var mouse = Mouse.GetState();
-
-            // Timers
-            if (HurtTimer > 0)      HurtTimer      -= dt;
+            if (HurtTimer      > 0) HurtTimer      -= dt;
             if (_attackCooldown > 0) _attackCooldown -= dt;
             if (_damageCooldown > 0) _damageCooldown -= dt;
 
-            bool running = kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift);
-            double speed = (running ? RunSpeed : MoveSpeed) * dt;
-
-            // Movement
-            double newX = PosX;
-            double newY = PosY;
+            double speed = (input.Running ? RunSpeed : MoveSpeed) * dt;
             const double margin = 0.25;
 
-            if (kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up))
-            {
-                newX += DirX * speed;
-                newY += DirY * speed;
-            }
-            if (kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down))
-            {
-                newX -= DirX * speed;
-                newY -= DirY * speed;
-            }
-            if (kb.IsKeyDown(Keys.A))
-            {
-                newX -= PlaneX / 0.66 * speed;
-                newY -= PlaneY / 0.66 * speed;
-            }
-            if (kb.IsKeyDown(Keys.D))
-            {
-                newX += PlaneX / 0.66 * speed;
-                newY += PlaneY / 0.66 * speed;
-            }
+            double newX = PosX, newY = PosY;
 
-            // Slide collision: try X and Y independently
-            if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY))
-                PosX = newX;
-            if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin)))
-                PosY = newY;
+            if (input.MoveForward) { newX += DirX * speed;         newY += DirY * speed; }
+            if (input.MoveBack)    { newX -= DirX * speed;         newY -= DirY * speed; }
+            if (input.StrafeLeft)  { newX -= PlaneX / 0.66 * speed; newY -= PlaneY / 0.66 * speed; }
+            if (input.StrafeRight) { newX += PlaneX / 0.66 * speed; newY += PlaneY / 0.66 * speed; }
 
-            // Exit check
+            if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)) PosX = newX;
+            if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))) PosY = newY;
+
             ReachedExit = map.IsExit((int)PosX, (int)PosY);
 
-            // Keyboard turning
-            if (kb.IsKeyDown(Keys.Left))  Rotate(-TurnSpeed * dt);
-            if (kb.IsKeyDown(Keys.Right)) Rotate( TurnSpeed * dt);
-
-            // Mouse look
-            if (!_firstFrame)
-            {
-                int dx = mouse.X - _prevMouseX;
-                if (dx != 0) Rotate(dx * MouseSens);
-            }
-            // Re-center mouse
-            Mouse.SetPosition(windowCenter.X, windowCenter.Y);
-            _prevMouseX = windowCenter.X;
-            _firstFrame = false;
-
+            if (input.TurnLeft)            Rotate(-TurnSpeed * dt);
+            if (input.TurnRight)           Rotate( TurnSpeed * dt);
+            if (input.MouseDeltaX != 0)    Rotate(input.MouseDeltaX * MouseSens);
         }
 
         public void TakeDamage(int amount)
@@ -141,10 +86,7 @@ namespace DCM.Core.Entities
             _damageCooldown = 0.5f;
         }
 
-        public void Heal(int amount)
-        {
-            Health = Math.Min(100, Health + amount);
-        }
+        public void Heal(int amount) => Health = Math.Min(100, Health + amount);
 
         public bool TryAttack()
         {

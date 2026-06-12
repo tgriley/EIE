@@ -42,13 +42,6 @@ namespace DCM.Core.Rendering
         private readonly int     _ceilTexW;
         private readonly int     _ceilTexH;
 
-        // Enemy spritesheet (horizontal strip, 6 frames)
-        private readonly Color[] _enemySheetPix;
-        private readonly int     _enemySheetW;
-        private readonly int     _enemySheetH;
-        private readonly int     _enemyFrameCount;
-        private readonly int     _enemyFrameW;  // width of one frame = sheetW / frameCount
-
         // 1×1 white pixel for rectangles (muzzle flash overlay)
         private readonly Texture2D _pixel;
 
@@ -63,11 +56,9 @@ namespace DCM.Core.Rendering
         public float MuzzleFlash { get; set; } = 0f;
 
         public RaycasterRenderer(GraphicsDevice gd,
-                                 Color[] wallTexPix,   int wallTexW,   int wallTexH,
-                                 Color[] floorTexPix,  int floorTexW,  int floorTexH,
-                                 Color[] ceilTexPix,   int ceilTexW,   int ceilTexH,
-                                 Color[] enemySheetPix, int enemySheetW, int enemySheetH,
-                                 int enemyFrameCount)
+                                 Color[] wallTexPix,  int wallTexW,  int wallTexH,
+                                 Color[] floorTexPix, int floorTexW, int floorTexH,
+                                 Color[] ceilTexPix,  int ceilTexW,  int ceilTexH)
         {
             _gd = gd;
             _sb = new SpriteBatch(gd);
@@ -81,12 +72,6 @@ namespace DCM.Core.Rendering
             _ceilTexPix  = ceilTexPix;
             _ceilTexW    = ceilTexW;
             _ceilTexH    = ceilTexH;
-
-            _enemySheetPix   = enemySheetPix;
-            _enemySheetW     = enemySheetW;
-            _enemySheetH     = enemySheetH;
-            _enemyFrameCount = enemyFrameCount;
-            _enemyFrameW     = enemySheetW / enemyFrameCount;
 
             _fbTex = new Texture2D(gd, RW, RH);
 
@@ -363,34 +348,35 @@ namespace DCM.Core.Rendering
 
             if (transY <= 0.05) return; // behind player
 
+            var sheet = enemy.SpriteSheet;
+
             int screenX = (int)((RW / 2) * (1.0 + transX / transY));
             int screenH = Math.Abs((int)(RH / transY));
-            int screenW = (int)(screenH * _enemyFrameW / (double)_enemySheetH);
+            int screenW = (int)(screenH * sheet.FrameWidth / (double)sheet.Height);
 
-            int drawTopY = RH / 2 - screenH / 2;
-            int drawBotY = RH / 2 + screenH / 2;
-            int drawLeft = screenX - screenW / 2;
+            int drawTopY  = RH / 2 - screenH / 2;
+            int drawBotY  = RH / 2 + screenH / 2;
+            int drawLeft  = screenX - screenW / 2;
             int drawRight = screenX + screenW / 2;
 
             float fog    = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
             float warmth = (float)Math.Clamp(0.3 - transY * 0.04, 0, 0.3f);
 
-            // Frame offset into the horizontal spritesheet
-            int frameOffX = enemy.AnimFrame * _enemyFrameW;
+            int frameOffX = enemy.AnimFrame * sheet.FrameWidth;
 
             for (int col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
             {
                 if (_zBuf[col] < transY) continue; // depth test
 
-                int texX = frameOffX + (int)((col - drawLeft) * _enemyFrameW / (double)screenW);
-                texX = Math.Clamp(texX, frameOffX, frameOffX + _enemyFrameW - 1);
+                int texX = frameOffX + (int)((col - drawLeft) * sheet.FrameWidth / (double)screenW);
+                texX = Math.Clamp(texX, frameOffX, frameOffX + sheet.FrameWidth - 1);
 
                 for (int row = Math.Max(0, drawTopY); row < Math.Min(RH, drawBotY); row++)
                 {
-                    int texY = (int)((row - drawTopY) * _enemySheetH / (double)screenH);
-                    texY = Math.Clamp(texY, 0, _enemySheetH - 1);
+                    int texY = (int)((row - drawTopY) * sheet.Height / (double)screenH);
+                    texY = Math.Clamp(texY, 0, sheet.Height - 1);
 
-                    Color c = _enemySheetPix[texY * _enemySheetW + texX];
+                    Color c = sheet.Pixels[texY * sheet.Width + texX];
                     if (c.A < 10) continue; // transparent pixel
 
                     byte r = (byte)Math.Clamp(c.R * fog + warmth * 180, 0, 255);

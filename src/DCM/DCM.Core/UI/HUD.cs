@@ -8,13 +8,14 @@ using System.Collections.Generic;
 
 namespace DCM.Core.UI
 {
-    public enum HudAction { None, Resume, Quit }
+    public enum HudAction { None, Resume, Quit, MainMenu }
 
     public class HUD : IDisposable
     {
         private readonly UIPainter _painter;
         private readonly Button    _resumeButton;
         private readonly Button    _quitButton;
+        private readonly Button    _mainMenuButton;
 
         private const int MapTileSize = 8;
         private const int MapPadding  = 12;
@@ -42,14 +43,21 @@ namespace DCM.Core.UI
             _painter = new UIPainter(sb, font, gd);
 
             int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-            _resumeButton = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "RESUME", _painter);
-            _quitButton   = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "QUIT",   _painter);
+            _resumeButton   = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",    _painter);
+            _quitButton     = new Button(new Rectangle(btnX, SH / 2 + 80,  btnW, btnH), "QUIT",      _painter);
+            _mainMenuButton = new Button(new Rectangle(btnX, SH / 2 + 70,  btnW, btnH), "MAIN MENU", _painter);
         }
 
-        public HudAction Update(MouseState mouse, MouseState prevMouse)
+        public HudAction UpdatePause(MouseState mouse, MouseState prevMouse)
         {
             if (_resumeButton.IsClicked(mouse, prevMouse)) return HudAction.Resume;
             if (_quitButton.IsClicked(mouse, prevMouse))   return HudAction.Quit;
+            return HudAction.None;
+        }
+
+        public HudAction UpdateEnd(MouseState mouse, MouseState prevMouse)
+        {
+            if (_mainMenuButton.IsClicked(mouse, prevMouse)) return HudAction.MainMenu;
             return HudAction.None;
         }
 
@@ -70,7 +78,7 @@ namespace DCM.Core.UI
             }
             else if (gameOver || won)
             {
-                DrawEndOverlay(won);
+                DrawEndOverlay(won, mousePos);
             }
             else
             {
@@ -204,18 +212,15 @@ namespace DCM.Core.UI
             _quitButton.Draw(mousePos);
         }
 
-        private void DrawEndOverlay(bool won)
+        private void DrawEndOverlay(bool won, Point mousePos)
         {
             _painter.DrawRect(0, 0, SW, SH, new Color(0, 0, 0, 180));
 
             string title = won ? "YOU ESCAPED!" : "YOU DIED";
-            string sub   = won ? "The babushka's curse is broken." : "She found you in the dark...";
-            string hint  = "Press Esc to quit";
             Color  tc    = won ? new Color(60, 220, 60) : new Color(220, 40, 40);
 
             _painter.DrawTextShadow(title, new Vector2((SW - _painter.Measure(title).X) / 2, SH / 2 - 60), tc);
-            _painter.DrawTextShadow(sub,   new Vector2((SW - _painter.Measure(sub).X)   / 2, SH / 2),      ColText,    0.85f);
-            _painter.DrawTextShadow(hint,  new Vector2((SW - _painter.Measure(hint).X)  / 2, SH / 2 + 60), ColTextDim, 0.75f);
+            _mainMenuButton.Draw(mousePos);
         }
 
         public void Dispose() => _painter.Dispose();

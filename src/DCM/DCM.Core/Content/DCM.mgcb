@@ -31,6 +31,10 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:SpritesheetEnemy0.png
+/build:SpritesheetEnemy1.png
+/build:SpritesheetEnemy2.png
+/build:SpritesheetEnemy3.png
+/build:SpritesheetEnemy4.png
 
 #begin TextureCeiling0.png
 /importer:TextureImporter

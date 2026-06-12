@@ -55,7 +55,7 @@ namespace DCM.Core.World
         public static Map Level1 { get; } = new Map(
             _level1Tiles,
             startX: 1.5f, startY: 1.5f, startAngle: 0f,
-            enemySpawns: new[] { (7, 7), (12, 3), (3, 10), (10, 12), (13, 8) },
+            enemySpawns: new[] { (7, 7), (13, 3), (3, 10), (10, 12), (14, 8) },
             torchPositions: new[] { (5, 1), (10, 1), (1, 7), (14, 7), (1, 13), (14, 13) }
         );
 
@@ -85,6 +85,13 @@ namespace DCM.Core.World
         }
 
         public bool IsExit(int x, int y) => GetTile(x, y) == Tile.Exit;
+
+        public bool IsValidSpawn(int x, int y)
+        {
+            if (IsWall(x, y) || IsExit(x, y)) return false;
+            return !IsWall(x, y - 1) || !IsWall(x, y + 1) ||
+                   !IsWall(x - 1, y) || !IsWall(x + 1, y);
+        }
 
         public bool IsBlocking(int x, int y)
         {

@@ -21,7 +21,7 @@ namespace DCM.Core
             _graphics.PreferredBackBufferWidth  = RaycasterRenderer.RW * 2;
             _graphics.PreferredBackBufferHeight = RaycasterRenderer.RH * 2;
             _graphics.ApplyChanges();
-            Window.Title = "Babushka — Find the Exit";
+            Window.Title = "Find the Exit";
         }
 
         protected override void Initialize() => base.Initialize();
@@ -30,8 +30,14 @@ namespace DCM.Core
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
             var font = Content.Load<Microsoft.Xna.Framework.Graphics.SpriteFont>("Fonts/Hud");
-            _currentScreen = new MenuScreen(_spriteBatch, font, GraphicsDevice,
-                () => new PlayScreen(_spriteBatch, font, GraphicsDevice, Content));
+
+            IGameScreen CreateMenu() =>
+                new MenuScreen(_spriteBatch, font, GraphicsDevice, CreatePlay);
+
+            IGameScreen CreatePlay() =>
+                new PlayScreen(_spriteBatch, font, GraphicsDevice, Content, CreateMenu);
+
+            _currentScreen = CreateMenu();
         }
 
         protected override void Update(GameTime gameTime)

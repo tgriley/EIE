@@ -13,11 +13,10 @@ namespace DCM.Core.Entities
         public int       Health    { get; private set; } = 60;
         public bool      IsDead    => State == EnemyState.Dead;
         public EnemyState State    { get; private set; } = EnemyState.Patrol;
-        public int       AnimFrame { get; private set; } = 0;
-        public bool      IsHurt    => _hurtTimer > 0;
-        public double    DistSq    { get; set; }
-
-        private const int   FrameCount  = 6;
+        public int              AnimFrame    { get; private set; } = 0;
+        public bool             IsHurt       => _hurtTimer > 0;
+        public double           DistSq       { get; set; }
+        public EnemySpriteSheet SpriteSheet  { get; }
         private const float PatrolFps   = 3f;
         private const float ChaseFps    = 10f;
 
@@ -35,11 +34,12 @@ namespace DCM.Core.Entities
 
         private static readonly Random _rng = new Random();
 
-        public Enemy(int tileX, int tileY)
+        public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet)
         {
-            PosX = tileX + 0.5;
-            PosY = tileY + 0.5;
-            double a = _rng.NextDouble() * Math.PI * 2;
+            PosX        = tileX + 0.5;
+            PosY        = tileY + 0.5;
+            SpriteSheet = spriteSheet;
+            double a    = _rng.NextDouble() * Math.PI * 2;
             _patrolDirX = Math.Cos(a);
             _patrolDirY = Math.Sin(a);
         }
@@ -90,7 +90,7 @@ namespace DCM.Core.Entities
             if (_animTimer >= 1f / fps)
             {
                 _animTimer -= 1f / fps;
-                AnimFrame = (AnimFrame + 1) % FrameCount;
+                AnimFrame = (AnimFrame + 1) % SpriteSheet.FrameCount;
             }
         }
 

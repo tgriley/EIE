@@ -1,5 +1,7 @@
 ﻿using DCM.Core;
 
+namespace DCM.DesktopGL;
+
 internal class Program
 {
     /// <summary>

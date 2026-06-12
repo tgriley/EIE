@@ -7,5 +7,6 @@ namespace DCM.Core.World
         int  GetTile(int x, int y);
         bool IsWall(int x, int y);
         bool IsExit(int x, int y);
+        bool IsValidSpawn(int x, int y);
     }
 }

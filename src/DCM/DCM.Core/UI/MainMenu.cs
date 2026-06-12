@@ -16,8 +16,6 @@ namespace DCM.Core.UI
 
         private static readonly Color ColBg    = new Color(10, 8, 8);
         private static readonly Color ColTitle = new Color(220, 180, 80);
-        private static readonly Color ColSub   = new Color(160, 140, 110);
-        private static readonly Color ColSep   = new Color(100, 80, 60);
 
         private readonly Button _startButton;
         private readonly Button _exitButton;
@@ -46,20 +44,12 @@ namespace DCM.Core.UI
 
             _painter.DrawRect(0, 0, SW, SH, ColBg);
 
-            const string title = "BABUSHKA";
+            const string title = "Escape From Island Epsteinstien";
             float   titleScale = 2f;
             Vector2 titleSize  = _painter.Measure(title);
             _painter.DrawTextShadow(title,
                 new Vector2((SW - titleSize.X * titleScale) / 2f, SH / 2f - 180),
                 ColTitle, titleScale);
-
-            const string sub = "Find the Exit";
-            Vector2 subSize = _painter.Measure(sub);
-            _painter.DrawTextShadow(sub,
-                new Vector2((SW - subSize.X) / 2f, SH / 2f - 90),
-                ColSub);
-
-            _painter.DrawRect((SW - 300) / 2, SH / 2 - 20, 300, 1, ColSep);
 
             _startButton.Draw(mousePos);
             _exitButton.Draw(mousePos);

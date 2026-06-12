@@ -2,97 +2,118 @@ using DCM.Core.Input;
 using DCM.Core.World;
 using System;
 
-namespace DCM.Core.Entities
+namespace DCM.Core.Entities;
+
+public class Player : ICamera, IDamageable
 {
-    public class Player : ICamera, IDamageable
+    public double PosX { get; set; }
+    public double PosY { get; set; }
+    public double DirX { get; private set; }
+    public double DirY { get; private set; }
+    public double PlaneX { get; private set; }
+    public double PlaneY { get; private set; }
+
+    public int Health { get; private set; } = 100;
+    public bool IsDead => Health <= 0;
+    public float HurtTimer { get; private set; } = 0f;
+    public bool ReachedExit { get; private set; }
+
+    private float _attackCooldown = 0f;
+    private float _damageCooldown = 0f;
+
+    private const double MoveSpeed = 2.8;
+    private const double RunSpeed = 4.5;
+    private const double TurnSpeed = 2.0;
+    private const double MouseSens = 0.0015;
+
+    public Player(double posX, double posY, double angle)
     {
-        public double PosX   { get; set; }
-        public double PosY   { get; set; }
-        public double DirX   { get; private set; }
-        public double DirY   { get; private set; }
-        public double PlaneX { get; private set; }
-        public double PlaneY { get; private set; }
+        PosX = posX;
+        PosY = posY;
+        SetAngle(angle);
+    }
 
-        public int   Health     { get; private set; } = 100;
-        public bool  IsDead     => Health <= 0;
-        public float HurtTimer  { get; private set; } = 0f;
-        public bool  ReachedExit { get; private set; }
+    private void SetAngle(double angle)
+    {
+        DirX = Math.Cos(angle);
+        DirY = Math.Sin(angle);
+        PlaneX = -Math.Sin(angle) * 0.66;
+        PlaneY = Math.Cos(angle) * 0.66;
+    }
 
-        private float _attackCooldown = 0f;
-        private float _damageCooldown = 0f;
+    private void Rotate(double rad)
+    {
+        double cosR = Math.Cos(rad), sinR = Math.Sin(rad);
+        var oldDirX = DirX;
+        DirX = DirX * cosR - DirY * sinR;
+        DirY = oldDirX * sinR + DirY * cosR;
+        var oldPlaneX = PlaneX;
+        PlaneX = PlaneX * cosR - PlaneY * sinR;
+        PlaneY = oldPlaneX * sinR + PlaneY * cosR;
+    }
 
-        private const double MoveSpeed = 2.8;
-        private const double RunSpeed  = 4.5;
-        private const double TurnSpeed = 2.0;
-        private const double MouseSens = 0.0015;
+    public void Update(float dt, IMap map, PlayerInput input)
+    {
+        if (HurtTimer > 0) HurtTimer -= dt;
+        if (_attackCooldown > 0) _attackCooldown -= dt;
+        if (_damageCooldown > 0) _damageCooldown -= dt;
 
-        public Player(double posX, double posY, double angle)
+        var speed = (input.Running ? RunSpeed : MoveSpeed) * dt;
+        const double margin = 0.25;
+
+        double newX = PosX, newY = PosY;
+
+        if (input.MoveForward)
         {
-            PosX = posX;
-            PosY = posY;
-            SetAngle(angle);
+            newX += DirX * speed;
+            newY += DirY * speed;
         }
 
-        private void SetAngle(double angle)
+        if (input.MoveBack)
         {
-            DirX   =  Math.Cos(angle);
-            DirY   =  Math.Sin(angle);
-            PlaneX = -Math.Sin(angle) * 0.66;
-            PlaneY =  Math.Cos(angle) * 0.66;
+            newX -= DirX * speed;
+            newY -= DirY * speed;
         }
 
-        private void Rotate(double rad)
+        if (input.StrafeLeft)
         {
-            double cosR = Math.Cos(rad), sinR = Math.Sin(rad);
-            double oldDirX = DirX;
-            DirX   = DirX   * cosR - DirY   * sinR;
-            DirY   = oldDirX * sinR + DirY   * cosR;
-            double oldPlaneX = PlaneX;
-            PlaneX = PlaneX * cosR - PlaneY * sinR;
-            PlaneY = oldPlaneX * sinR + PlaneY * cosR;
+            newX -= PlaneX / 0.66 * speed;
+            newY -= PlaneY / 0.66 * speed;
         }
 
-        public void Update(float dt, IMap map, PlayerInput input)
+        if (input.StrafeRight)
         {
-            if (HurtTimer      > 0) HurtTimer      -= dt;
-            if (_attackCooldown > 0) _attackCooldown -= dt;
-            if (_damageCooldown > 0) _damageCooldown -= dt;
-
-            double speed = (input.Running ? RunSpeed : MoveSpeed) * dt;
-            const double margin = 0.25;
-
-            double newX = PosX, newY = PosY;
-
-            if (input.MoveForward) { newX += DirX * speed;         newY += DirY * speed; }
-            if (input.MoveBack)    { newX -= DirX * speed;         newY -= DirY * speed; }
-            if (input.StrafeLeft)  { newX -= PlaneX / 0.66 * speed; newY -= PlaneY / 0.66 * speed; }
-            if (input.StrafeRight) { newX += PlaneX / 0.66 * speed; newY += PlaneY / 0.66 * speed; }
-
-            if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)) PosX = newX;
-            if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))) PosY = newY;
-
-            ReachedExit = map.IsExit((int)PosX, (int)PosY);
-
-            if (input.TurnLeft)            Rotate(-TurnSpeed * dt);
-            if (input.TurnRight)           Rotate( TurnSpeed * dt);
-            if (input.MouseDeltaX != 0)    Rotate(input.MouseDeltaX * MouseSens);
+            newX += PlaneX / 0.66 * speed;
+            newY += PlaneY / 0.66 * speed;
         }
 
-        public void TakeDamage(int amount)
-        {
-            if (_damageCooldown > 0) return;
-            Health = Math.Max(0, Health - amount);
-            HurtTimer = 0.35f;
-            _damageCooldown = 0.5f;
-        }
+        if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)) PosX = newX;
+        if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))) PosY = newY;
 
-        public void Heal(int amount) => Health = Math.Min(100, Health + amount);
+        ReachedExit = map.IsExit((int)PosX, (int)PosY);
 
-        public bool TryAttack()
-        {
-            if (_attackCooldown > 0) return false;
-            _attackCooldown = 0.5f;
-            return true;
-        }
+        if (input.TurnLeft) Rotate(-TurnSpeed * dt);
+        if (input.TurnRight) Rotate(TurnSpeed * dt);
+        if (input.MouseDeltaX != 0) Rotate(input.MouseDeltaX * MouseSens);
+    }
+
+    public void TakeDamage(int amount)
+    {
+        if (_damageCooldown > 0) return;
+        Health = Math.Max(0, Health - amount);
+        HurtTimer = 0.35f;
+        _damageCooldown = 0.5f;
+    }
+
+    public void Heal(int amount)
+    {
+        Health = Math.Min(100, Health + amount);
+    }
+
+    public bool TryAttack()
+    {
+        if (_attackCooldown > 0) return false;
+        _attackCooldown = 0.5f;
+        return true;
     }
 }

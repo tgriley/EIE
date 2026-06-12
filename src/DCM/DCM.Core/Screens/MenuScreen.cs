@@ -5,32 +5,37 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 
-namespace DCM.Core.Screens
+namespace DCM.Core.Screens;
+
+public class MenuScreen : IGameScreen
 {
-    public class MenuScreen : IGameScreen
+    private readonly MainMenu _menu;
+    private readonly Func<IGameScreen> _createPlayScreen;
+
+    public bool IsMouseVisible => true;
+
+    public MenuScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
+        Func<IGameScreen> createPlayScreen)
     {
-        private readonly MainMenu          _menu;
-        private readonly Func<IGameScreen> _createPlayScreen;
+        _menu = new MainMenu(sb, font, gd);
+        _createPlayScreen = createPlayScreen;
+    }
 
-        public bool IsMouseVisible => true;
+    public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
+    {
+        var action = _menu.Update(mouse, prevMouse);
+        if (action == MenuAction.Start) return _createPlayScreen();
+        if (action == MenuAction.Exit) return null;
+        return this;
+    }
 
-        public MenuScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
-                          Func<IGameScreen> createPlayScreen)
-        {
-            _menu             = new MainMenu(sb, font, gd);
-            _createPlayScreen = createPlayScreen;
-        }
+    public void Draw(GameTime gameTime)
+    {
+        _menu.Draw(gameTime);
+    }
 
-        public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
-        {
-            MenuAction action = _menu.Update(mouse, prevMouse);
-            if (action == MenuAction.Start) return _createPlayScreen();
-            if (action == MenuAction.Exit)  return null;
-            return this;
-        }
-
-        public void Draw(GameTime gameTime) => _menu.Draw(gameTime);
-
-        public void Dispose() => _menu.Dispose();
+    public void Dispose()
+    {
+        _menu.Dispose();
     }
 }

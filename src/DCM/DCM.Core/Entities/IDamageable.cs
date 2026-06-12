@@ -1,9 +1,8 @@
-namespace DCM.Core.Entities
+namespace DCM.Core.Entities;
+
+public interface IDamageable
 {
-    public interface IDamageable
-    {
-        double PosX { get; }
-        double PosY { get; }
-        void TakeDamage(int amount);
-    }
+    double PosX { get; }
+    double PosY { get; }
+    void TakeDamage(int amount);
 }

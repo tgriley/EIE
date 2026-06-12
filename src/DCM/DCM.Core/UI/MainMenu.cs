@@ -3,66 +3,73 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 
-namespace DCM.Core.UI
+namespace DCM.Core.UI;
+
+public enum MenuAction
 {
-    public enum MenuAction { None, Start, Exit }
+    None,
+    Start,
+    Exit
+}
 
-    public class MainMenu : IDisposable
+public class MainMenu : IDisposable
+{
+    private readonly UIPainter _painter;
+
+    private const int SW = 1280;
+    private const int SH = 720;
+
+    private static readonly Color ColBg = new(10, 8, 8);
+    private static readonly Color ColTitle = new(220, 180, 80);
+
+    private readonly Button _startButton;
+    private readonly Button _exitButton;
+
+    public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd)
     {
-        private readonly UIPainter _painter;
+        _painter = new UIPainter(sb, font, gd);
 
-        private const int SW = 1280;
-        private const int SH = 720;
+        int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
+        _startButton = new Button(new Rectangle(btnX, SH / 2 + 20, btnW, btnH), "START", _painter);
+        _exitButton = new Button(new Rectangle(btnX, SH / 2 + 90, btnW, btnH), "EXIT", _painter);
+    }
 
-        private static readonly Color ColBg    = new Color(10, 8, 8);
-        private static readonly Color ColTitle = new Color(220, 180, 80);
+    public MenuAction Update(MouseState mouse, MouseState prevMouse)
+    {
+        if (_startButton.IsClicked(mouse, prevMouse)) return MenuAction.Start;
+        if (_exitButton.IsClicked(mouse, prevMouse)) return MenuAction.Exit;
+        return MenuAction.None;
+    }
 
-        private readonly Button _startButton;
-        private readonly Button _exitButton;
+    public void Draw(GameTime gameTime)
+    {
+        var mousePos = Mouse.GetState().Position;
 
-        public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd)
-        {
-            _painter = new UIPainter(sb, font, gd);
+        _painter.Begin();
 
-            int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-            _startButton = new Button(new Rectangle(btnX, SH / 2 + 20, btnW, btnH), "START", _painter);
-            _exitButton  = new Button(new Rectangle(btnX, SH / 2 + 90, btnW, btnH), "EXIT",  _painter);
-        }
+        _painter.DrawRect(0, 0, SW, SH, ColBg);
 
-        public MenuAction Update(MouseState mouse, MouseState prevMouse)
-        {
-            if (_startButton.IsClicked(mouse, prevMouse)) return MenuAction.Start;
-            if (_exitButton.IsClicked(mouse, prevMouse))  return MenuAction.Exit;
-            return MenuAction.None;
-        }
+        const string title = "Escape From Island Epsteinstien";
+        var titleScale = 2f;
+        var titleSize = _painter.Measure(title);
+        _painter.DrawTextShadow(title,
+            new Vector2((SW - titleSize.X * titleScale) / 2f, SH / 2f - 180),
+            ColTitle, titleScale);
 
-        public void Draw(GameTime gameTime)
-        {
-            Point mousePos = Mouse.GetState().Position;
+        _startButton.Draw(mousePos);
+        _exitButton.Draw(mousePos);
 
-            _painter.Begin();
+        const string hint = "W A S D + Mouse to play   |   Esc to pause";
+        var hintSize = _painter.Measure(hint);
+        _painter.DrawTextShadow(hint,
+            new Vector2((SW - hintSize.X * 0.75f) / 2f, SH - 50),
+            new Color(80, 70, 60), 0.75f);
 
-            _painter.DrawRect(0, 0, SW, SH, ColBg);
+        _painter.End();
+    }
 
-            const string title = "Escape From Island Epsteinstien";
-            float   titleScale = 2f;
-            Vector2 titleSize  = _painter.Measure(title);
-            _painter.DrawTextShadow(title,
-                new Vector2((SW - titleSize.X * titleScale) / 2f, SH / 2f - 180),
-                ColTitle, titleScale);
-
-            _startButton.Draw(mousePos);
-            _exitButton.Draw(mousePos);
-
-            const string hint = "W A S D + Mouse to play   |   Esc to pause";
-            Vector2 hintSize = _painter.Measure(hint);
-            _painter.DrawTextShadow(hint,
-                new Vector2((SW - hintSize.X * 0.75f) / 2f, SH - 50),
-                new Color(80, 70, 60), 0.75f);
-
-            _painter.End();
-        }
-
-        public void Dispose() => _painter.Dispose();
+    public void Dispose()
+    {
+        _painter.Dispose();
     }
 }

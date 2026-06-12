@@ -1,12 +1,11 @@
-namespace DCM.Core.World
+namespace DCM.Core.World;
+
+public interface IMap
 {
-    public interface IMap
-    {
-        int  Width  { get; }
-        int  Height { get; }
-        int  GetTile(int x, int y);
-        bool IsWall(int x, int y);
-        bool IsExit(int x, int y);
-        bool IsValidSpawn(int x, int y);
-    }
+    int Width { get; }
+    int Height { get; }
+    int GetTile(int x, int y);
+    bool IsWall(int x, int y);
+    bool IsExit(int x, int y);
+    bool IsValidSpawn(int x, int y);
 }

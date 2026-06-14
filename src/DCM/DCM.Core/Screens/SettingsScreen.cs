@@ -15,6 +15,7 @@ public class SettingsScreen : IGameScreen
     private readonly Func<IGameScreen> _toMenu;
     private readonly Action _toggleMute;
     private readonly Action _toggleFullscreen;
+    private readonly Action _resetSave;
 
     private const int SW = 1280;
     private const int SH = 720;
@@ -26,25 +27,36 @@ public class SettingsScreen : IGameScreen
 
     private readonly Rectangle _soundBounds;
     private readonly Rectangle _fullscreenBounds;
+    private readonly Button _resetButton;
+    private readonly Button _confirmButton;
+    private readonly Button _cancelButton;
     private readonly Button _backButton;
+    private bool _confirmPending;
 
     public bool IsMouseVisible => true;
 
     public SettingsScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
         Func<IGameScreen> toMenu, SoundEffect clickSound,
-        Action toggleMute, Action toggleFullscreen)
+        Action toggleMute, Action toggleFullscreen, Action resetSave)
     {
         _painter          = new UIPainter(sb, font, gd);
         _clickSound       = clickSound;
         _toMenu           = toMenu;
         _toggleMute       = toggleMute;
         _toggleFullscreen = toggleFullscreen;
+        _resetSave        = resetSave;
 
-        var rowX = (SW - RowW) / 2;
-        _soundBounds      = new Rectangle(rowX, SH / 2 - 40, RowW, RowH);
-        _fullscreenBounds = new Rectangle(rowX, SH / 2 + 30, RowW, RowH);
-        _backButton       = new Button(
-            new Rectangle((SW - 240) / 2, SH / 2 + 130, 240, RowH), "BACK", _painter);
+        var rowX    = (SW - RowW) / 2;
+        var btnX    = (SW - 240) / 2;
+        const int confirmW = 115, gap = 10;
+        var confirmX = (SW - (confirmW * 2 + gap)) / 2;
+
+        _soundBounds      = new Rectangle(rowX,    SH / 2 - 40,  RowW, RowH);
+        _fullscreenBounds = new Rectangle(rowX,    SH / 2 + 30,  RowW, RowH);
+        _resetButton      = new Button(new Rectangle(btnX,              SH / 2 + 110, 240,      RowH), "RESET SAVE", _painter);
+        _confirmButton    = new Button(new Rectangle(confirmX,           SH / 2 + 110, confirmW, RowH), "CONFIRM",    _painter);
+        _cancelButton     = new Button(new Rectangle(confirmX + confirmW + gap, SH / 2 + 110, confirmW, RowH), "CANCEL", _painter);
+        _backButton       = new Button(new Rectangle(btnX,              SH / 2 + 190, 240,      RowH), "BACK",       _painter);
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -58,6 +70,28 @@ public class SettingsScreen : IGameScreen
         {
             _clickSound.Play();
             _toggleFullscreen();
+        }
+        if (!_confirmPending)
+        {
+            if (_resetButton.IsClicked(mouse, prevMouse))
+            {
+                _clickSound.Play();
+                _confirmPending = true;
+            }
+        }
+        else
+        {
+            if (_confirmButton.IsClicked(mouse, prevMouse))
+            {
+                _clickSound.Play();
+                _resetSave();
+                _confirmPending = false;
+            }
+            if (_cancelButton.IsClicked(mouse, prevMouse))
+            {
+                _clickSound.Play();
+                _confirmPending = false;
+            }
         }
         if (_backButton.IsClicked(mouse, prevMouse))
         {
@@ -83,6 +117,15 @@ public class SettingsScreen : IGameScreen
         DrawToggleRow("SOUND",      !GameSettings.MuteSound,    _soundBounds,      mousePos);
         DrawToggleRow("FULLSCREEN", GameSettings.IsFullscreen,   _fullscreenBounds, mousePos);
 
+        if (!_confirmPending)
+        {
+            _resetButton.Draw(mousePos);
+        }
+        else
+        {
+            _confirmButton.Draw(mousePos);
+            _cancelButton.Draw(mousePos);
+        }
         _backButton.Draw(mousePos);
 
         _painter.End();

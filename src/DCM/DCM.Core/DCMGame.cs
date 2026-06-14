@@ -38,6 +38,13 @@ public class DCMGame : Game
 
     protected override void LoadContent()
     {
+        SaveManager.Load();
+        if (GameSettings.IsFullscreen)
+        {
+            _graphics.IsFullScreen = true;
+            _graphics.ApplyChanges();
+        }
+
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         var font = Content.Load<SpriteFont>("Fonts/Hud");
         _clickSound = CreateClickSound();
@@ -60,7 +67,8 @@ public class DCMGame : Game
                     GameSettings.ToggleFullscreen();
                     _graphics.IsFullScreen = GameSettings.IsFullscreen;
                     _graphics.ApplyChanges();
-                });
+                },
+                LevelProgress.Reset);
 
         IGameScreen CreateLevelSelect() =>
             new LevelSelectScreen(_spriteBatch, font, GraphicsDevice, CreatePlay, CreateMenu, _clickSound);

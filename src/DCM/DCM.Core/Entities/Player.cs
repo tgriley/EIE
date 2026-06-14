@@ -1,3 +1,4 @@
+#nullable enable
 using DCM.Core.Input;
 using DCM.Core.World;
 using System;
@@ -17,6 +18,9 @@ public class Player : ICamera, IDamageable
     public bool IsDead => Health <= 0;
     public float HurtTimer { get; private set; } = 0f;
     public bool ReachedExit { get; private set; }
+
+    public Action? OnDamaged { get; set; }
+    public Action? OnDied    { get; set; }
 
     private float _attackCooldown = 0f;
     private float _damageCooldown = 0f;
@@ -103,6 +107,8 @@ public class Player : ICamera, IDamageable
         Health = Math.Max(0, Health - amount);
         HurtTimer = 0.35f;
         _damageCooldown = 0.5f;
+        if (Health <= 0) OnDied?.Invoke();
+        else             OnDamaged?.Invoke();
     }
 
     public void Heal(int amount)

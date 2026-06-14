@@ -8,11 +8,6 @@ using System.Collections.Generic;
 
 namespace DCM.Core.Rendering;
 
-/// <summary>
-/// Classic DDA raycaster: perspective-correct textured walls, floor, and ceiling,
-/// distance fog, and Z-buffer sprite hit detection.
-/// Renders to an internal 640×360 frame buffer then scales 2× to 1280×720.
-/// </summary>
 public class RaycasterRenderer : IDisposable
 {
     // Internal (low-res) render dimensions — 2× pixel scaling gives retro feel
@@ -45,10 +40,6 @@ public class RaycasterRenderer : IDisposable
     // 1×1 white pixel for rectangles (muzzle flash overlay)
     private readonly Texture2D _pixel;
 
-    // Health pickup billboard sprite (16×16, generated once)
-    private static readonly Color[] _pickupPixels = GeneratePickupSprite();
-    private const int PickupTexSize = 16;
-
     // Fog: beyond this perpDist everything is pitch black
     private const double FogStart = 1.5;
     private const double FogEnd = 9.0;
@@ -79,7 +70,6 @@ public class RaycasterRenderer : IDisposable
 
         _fbTex = new Texture2D(gd, RW, RH);
 
-        // 1×1 white pixel — used for the muzzle flash overlay
         _pixel = new Texture2D(gd, 1, 1);
         _pixel.SetData(new[] { Color.White });
 
@@ -88,28 +78,22 @@ public class RaycasterRenderer : IDisposable
 
     // ── Main render entry ─────────────────────────────────────────────────
 
-    public void Render(GameTime gameTime, ICamera camera, IMap map, List<Enemy> enemies,
-        HealthPickup? pickup = null)
+    public void Render(GameTime gameTime, ICamera camera, IMap map, IEnumerable<IBillboard> billboards)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         DrawCeiling(camera);
         DrawFloor(camera);
         CastWalls(camera, map);
-        RenderEnemies(camera, enemies);
-        if (pickup != null && !pickup.IsCollected)
-            DrawPickupBillboard(camera, pickup.PosX, pickup.PosY);
+        RenderBillboards(camera, billboards);
 
-        // Upload frame buffer
         _fbTex.SetData(_fb);
 
-        // Draw scaled to screen
         _sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque,
             SamplerState.PointClamp, null, null);
         _sb.Draw(_fbTex, _destRect, Color.White);
         _sb.End();
 
-        // Hurt flash overlay
         if (MuzzleFlash > 0)
         {
             _sb.Begin();
@@ -123,11 +107,6 @@ public class RaycasterRenderer : IDisposable
 
     // ── Ceiling / floor projection ────────────────────────────────────────
 
-    /// <summary>
-    /// Perspective-correct ceiling texture projection (mirror of DrawFloor).
-    /// For each row above the horizon, compute the real-world position and
-    /// sample the ceiling texture with distance fog.
-    /// </summary>
     private void DrawCeiling(ICamera camera)
     {
         var half = RH / 2;
@@ -139,7 +118,7 @@ public class RaycasterRenderer : IDisposable
 
         for (var y = 0; y < half; y++)
         {
-            var p = half - y; // rows above horizon (1 at horizon edge)
+            var p = half - y;
             if (p == 0) p = 1;
 
             var rowDist = 0.5 * RH / p;
@@ -163,10 +142,7 @@ public class RaycasterRenderer : IDisposable
 
                 var raw = _ceilTexPix[ty * _ceilTexW + tx];
 
-                var r = (byte)(raw.R * fog);
-                var g = (byte)(raw.G * fog);
-                var b = (byte)(raw.B * fog);
-                _fb[rowOff + x] = new Color(r, g, b);
+                _fb[rowOff + x] = new Color((byte)(raw.R * fog), (byte)(raw.G * fog), (byte)(raw.B * fog));
 
                 floorX += stepX;
                 floorY += stepY;
@@ -174,16 +150,10 @@ public class RaycasterRenderer : IDisposable
         }
     }
 
-    /// <summary>
-    /// Perspective-correct floor texture projection.
-    /// For each row below the horizon, compute the real-world floor position
-    /// each pixel maps to, sample the floor texture, and apply distance fog.
-    /// </summary>
     private void DrawFloor(ICamera camera)
     {
         var half = RH / 2;
 
-        // Camera-space edge ray directions
         var rayDirX0 = camera.DirX - camera.PlaneX;
         var rayDirY0 = camera.DirY - camera.PlaneY;
         var rayDirX1 = camera.DirX + camera.PlaneX;
@@ -191,27 +161,22 @@ public class RaycasterRenderer : IDisposable
 
         for (var y = half; y < RH; y++)
         {
-            var p = y - half; // rows below horizon (1 at horizon edge)
+            var p = y - half;
             if (p == 0) p = 1;
 
-            // Horizontal distance from camera to floor at this row
             var rowDist = 0.5 * RH / p;
 
-            // World-space step per pixel in this row
             var stepX = rowDist * (rayDirX1 - rayDirX0) / RW;
             var stepY = rowDist * (rayDirY1 - rayDirY0) / RW;
 
-            // World-space position of the leftmost pixel
             var floorX = camera.PosX + rowDist * rayDirX0;
             var floorY = camera.PosY + rowDist * rayDirY0;
 
-            // Distance fog (same range as wall fog for consistency)
             var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (FogEnd - FogStart), 0, 1);
 
             var rowOff = y * RW;
             for (var x = 0; x < RW; x++)
             {
-                // Fractional tile position → texture coordinates
                 var fx = floorX - Math.Floor(floorX);
                 var fy = floorY - Math.Floor(floorY);
 
@@ -220,10 +185,7 @@ public class RaycasterRenderer : IDisposable
 
                 var raw = _floorTexPix[ty * _floorTexW + tx];
 
-                var r = (byte)(raw.R * fog);
-                var g = (byte)(raw.G * fog);
-                var b = (byte)(raw.B * fog);
-                _fb[rowOff + x] = new Color(r, g, b);
+                _fb[rowOff + x] = new Color((byte)(raw.R * fog), (byte)(raw.G * fog), (byte)(raw.B * fog));
 
                 floorX += stepX;
                 floorY += stepY;
@@ -240,7 +202,6 @@ public class RaycasterRenderer : IDisposable
 
         for (var col = 0; col < RW; col++)
         {
-            // Camera-space X: -1 (left) to +1 (right)
             var camX = 2.0 * col / RW - 1.0;
 
             var rayDX = camera.DirX + camera.PlaneX * camX;
@@ -249,60 +210,30 @@ public class RaycasterRenderer : IDisposable
             var mapX = (int)camera.PosX;
             var mapY = (int)camera.PosY;
 
-            // Avoid division by zero
             var deltaDX = rayDX == 0 ? double.MaxValue : Math.Abs(1.0 / rayDX);
             var deltaDY = rayDY == 0 ? double.MaxValue : Math.Abs(1.0 / rayDY);
 
             int stepX, stepY;
             double sideX, sideY;
 
-            if (rayDX < 0)
-            {
-                stepX = -1;
-                sideX = (camera.PosX - mapX) * deltaDX;
-            }
-            else
-            {
-                stepX = 1;
-                sideX = (mapX + 1.0 - camera.PosX) * deltaDX;
-            }
+            if (rayDX < 0) { stepX = -1; sideX = (camera.PosX - mapX) * deltaDX; }
+            else           { stepX =  1; sideX = (mapX + 1.0 - camera.PosX) * deltaDX; }
 
-            if (rayDY < 0)
-            {
-                stepY = -1;
-                sideY = (camera.PosY - mapY) * deltaDY;
-            }
-            else
-            {
-                stepY = 1;
-                sideY = (mapY + 1.0 - camera.PosY) * deltaDY;
-            }
+            if (rayDY < 0) { stepY = -1; sideY = (camera.PosY - mapY) * deltaDY; }
+            else           { stepY =  1; sideY = (mapY + 1.0 - camera.PosY) * deltaDY; }
 
-            // DDA loop
             var side = 0;
             var hitTile = 0;
             for (var safety = 0; safety < 64; safety++)
             {
-                if (sideX < sideY)
-                {
-                    sideX += deltaDX;
-                    mapX += stepX;
-                    side = 0;
-                }
-                else
-                {
-                    sideY += deltaDY;
-                    mapY += stepY;
-                    side = 1;
-                }
+                if (sideX < sideY) { sideX += deltaDX; mapX += stepX; side = 0; }
+                else               { sideY += deltaDY; mapY += stepY; side = 1; }
 
                 hitTile = map.GetTile(mapX, mapY);
                 if (hitTile != 0) break;
             }
 
-            var perpDist = side == 0
-                ? sideX - deltaDX
-                : sideY - deltaDY;
+            var perpDist = side == 0 ? sideX - deltaDX : sideY - deltaDY;
             if (perpDist < 0.001) perpDist = 0.001;
 
             _zBuf[col] = perpDist;
@@ -311,7 +242,6 @@ public class RaycasterRenderer : IDisposable
             var drawTop = Math.Max(0, RH / 2 - wallH / 2);
             var drawBot = Math.Min(RH - 1, RH / 2 + wallH / 2);
 
-            // Texture X coordinate (where did the ray hit the wall face?)
             var wallX = side == 0
                 ? camera.PosY + perpDist * rayDY
                 : camera.PosX + perpDist * rayDX;
@@ -321,16 +251,11 @@ public class RaycasterRenderer : IDisposable
                 texX = texSzW - texX - 1;
             texX = Math.Clamp(texX, 0, texSzW - 1);
 
-            // Fog factor
             var fog = (float)Math.Clamp(1.0 - (perpDist - FogStart) / (FogEnd - FogStart), 0, 1);
-            // Y-side walls are darker (classic Wolfenstein shadow trick)
             var sideFactor = side == 0 ? 1.0f : 0.6f;
             var bright = fog * sideFactor;
-
-            // Torchlight: warm glow near player
             var warmth = (float)Math.Clamp(0.3 - perpDist * 0.04, 0, 0.3f);
 
-            // Draw textured wall column
             var step = (double)texSzH / wallH;
             var texY = drawTop > RH / 2 - wallH / 2
                 ? (drawTop - (RH / 2 - wallH / 2)) * step
@@ -351,142 +276,27 @@ public class RaycasterRenderer : IDisposable
         }
     }
 
-    // ── Enemy sprite rendering ────────────────────────────────────────────
+    // ── Billboard rendering ───────────────────────────────────────────────
 
-    private void RenderEnemies(ICamera camera, List<Enemy> enemies)
+    private void RenderBillboards(ICamera camera, IEnumerable<IBillboard> billboards)
     {
-        // Sort farthest-first so nearer enemies overdraw distant ones
-        foreach (var e in enemies)
-            e.DistSq = (e.PosX - camera.PosX) * (e.PosX - camera.PosX) +
-                       (e.PosY - camera.PosY) * (e.PosY - camera.PosY);
-
-        var sorted = new List<Enemy>(enemies);
-        sorted.Sort((a, b) => b.DistSq.CompareTo(a.DistSq));
-
-        foreach (var e in sorted)
+        var list = new List<IBillboard>();
+        foreach (var b in billboards)
         {
-            if (e.IsDead) continue;
-            DrawEnemy(camera, e);
+            if (!b.IsVisible) continue;
+            b.DistSq = (b.PosX - camera.PosX) * (b.PosX - camera.PosX) +
+                       (b.PosY - camera.PosY) * (b.PosY - camera.PosY);
+            list.Add(b);
         }
+        list.Sort((a, b) => b.DistSq.CompareTo(a.DistSq));
+        foreach (var b in list)
+            DrawBillboard(camera, b);
     }
 
-    private void DrawEnemy(ICamera camera, Enemy enemy)
+    private void DrawBillboard(ICamera camera, IBillboard b)
     {
-        var relX = enemy.PosX - camera.PosX;
-        var relY = enemy.PosY - camera.PosY;
-
-        // Camera-space transform (inverse of view matrix)
-        var invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
-        var transX = invDet * (camera.DirY * relX - camera.DirX * relY);
-        var transY = invDet * (-camera.PlaneY * relX + camera.PlaneX * relY);
-
-        if (transY <= 0.05) return; // behind player
-
-        var sheet = enemy.SpriteSheet;
-
-        var screenX = (int)(RW / 2 * (1.0 + transX / transY));
-        var screenH = Math.Abs((int)(RH / transY));
-        var screenW = (int)(screenH * sheet.FrameWidth / (double)sheet.Height);
-
-        var drawTopY = RH / 2 - screenH / 2;
-        var drawBotY = RH / 2 + screenH / 2;
-        var drawLeft = screenX - screenW / 2;
-        var drawRight = screenX + screenW / 2;
-
-        var fog = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
-        var warmth = (float)Math.Clamp(0.3 - transY * 0.04, 0, 0.3f);
-
-        var frameOffX = enemy.AnimFrame * sheet.FrameWidth;
-
-        for (var col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
-        {
-            if (_zBuf[col] < transY) continue; // depth test
-
-            var texX = frameOffX + (int)((col - drawLeft) * sheet.FrameWidth / (double)screenW);
-            texX = Math.Clamp(texX, frameOffX, frameOffX + sheet.FrameWidth - 1);
-
-            for (var row = Math.Max(0, drawTopY); row < Math.Min(RH, drawBotY); row++)
-            {
-                var texY = (int)((row - drawTopY) * sheet.Height / (double)screenH);
-                texY = Math.Clamp(texY, 0, sheet.Height - 1);
-
-                var c = sheet.Pixels[texY * sheet.Width + texX];
-                if (c.A < 10) continue; // transparent pixel
-
-                var r = (byte)Math.Clamp(c.R * fog + warmth * 180, 0, 255);
-                var g = (byte)Math.Clamp(c.G * fog + warmth * 90, 0, 255);
-                var b = (byte)Math.Clamp(c.B * fog, 0, 255);
-
-                // Red tint when hurt
-                if (enemy.IsHurt)
-                {
-                    r = (byte)Math.Min(255, r + 80);
-                    g = (byte)Math.Max(0, g - 40);
-                    b = (byte)Math.Max(0, b - 40);
-                }
-
-                _fb[row * RW + col] = new Color(r, g, b, c.A);
-            }
-        }
-
-        DrawEnemyHealthBar(screenX, drawTopY, screenW, enemy, transY);
-    }
-
-    private void DrawEnemyHealthBar(int screenX, int drawTopY, int screenW, Enemy enemy, double transY)
-    {
-        if (enemy.Health >= Enemy.MaxHealth) return;
-        if (screenX < 0 || screenX >= RW) return;
-        if (_zBuf[screenX] < transY) return; // hidden behind wall
-
-        const int barH = 3;
-        const int gap  = 3; // pixels above sprite top
-        var barY = drawTopY - gap - barH;
-        if (barY < 0) return;
-
-        var barLeft = screenX - screenW / 2;
-        var frac    = (float)enemy.Health / Enemy.MaxHealth;
-        var fillEnd = barLeft + (int)(screenW * frac);
-
-        var fillCol = frac > 0.6f ? new Color(60, 200, 60)
-            : frac > 0.3f        ? new Color(220, 180, 0)
-            :                      new Color(220, 50, 40);
-        var bgCol = new Color(20, 20, 20);
-
-        for (var row = barY; row < barY + barH; row++)
-        {
-            var colStart = Math.Max(0, barLeft);
-            var colEnd   = Math.Min(RW, barLeft + screenW);
-            for (var col = colStart; col < colEnd; col++)
-                _fb[row * RW + col] = col < fillEnd ? fillCol : bgCol;
-        }
-    }
-
-    // ── Health pickup rendering ───────────────────────────────────────────
-
-    private static Color[] GeneratePickupSprite()
-    {
-        const int sz = PickupTexSize;
-        var pixels = new Color[sz * sz];
-        for (var y = 0; y < sz; y++)
-        for (var x = 0; x < sz; x++)
-        {
-            var inBox    = x >= 2 && x < 14 && y >= 2 && y < 14;
-            var onBorder = inBox && (x == 2 || x == 13 || y == 2 || y == 13);
-            var inCross  = (x >= 6 && x < 10 && y >= 2 && y < 14) ||
-                           (x >= 2 && x < 14 && y >= 6 && y < 10);
-
-            pixels[y * sz + x] = !inBox  ? Color.Transparent
-                : inCross                 ? new Color(220, 40,  40)   // red cross
-                : onBorder                ? new Color(50,  50,  50)   // dark border
-                :                          new Color(200, 200, 195);  // light fill
-        }
-        return pixels;
-    }
-
-    private void DrawPickupBillboard(ICamera camera, double posX, double posY)
-    {
-        var relX = posX - camera.PosX;
-        var relY = posY - camera.PosY;
+        var relX = b.PosX - camera.PosX;
+        var relY = b.PosY - camera.PosY;
 
         var invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
         var transX = invDet * (camera.DirY * relX - camera.DirX * relY);
@@ -494,49 +304,87 @@ public class RaycasterRenderer : IDisposable
 
         if (transY <= 0.05) return;
 
-        // Half-height so the kit appears as a small floor item
-        var screenH  = Math.Abs((int)(RH / transY)) / 2;
-        var screenW  = screenH;
-        var drawTopY = RH / 2;               // sits on the floor (below horizon)
-        var drawBotY = RH / 2 + screenH;
         var screenX  = (int)(RW / 2 * (1.0 + transX / transY));
+        var screenH  = Math.Abs((int)(RH / transY)) / b.HeightDivisor;
+        var screenW  = (int)(screenH * b.TexWidth / (double)b.TexHeight);
+        var drawTopY = RH / 2 - screenH / 2 + (int)(screenH * b.VerticalShift);
+        var drawBotY = drawTopY + screenH;
         var drawLeft = screenX - screenW / 2;
         var drawRight = screenX + screenW / 2;
 
-        var fog = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
+        var fog    = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
+        var warmth = (float)Math.Clamp(0.3 - transY * 0.04, 0, 0.3f);
 
         for (var col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
         {
             if (_zBuf[col] < transY) continue;
 
-            var texX = Math.Clamp((int)((col - drawLeft) * PickupTexSize / (double)screenW),
-                0, PickupTexSize - 1);
+            var texX = b.PixelOffsetX + (int)((col - drawLeft) * b.TexWidth / (double)screenW);
+            texX = Math.Clamp(texX, b.PixelOffsetX, b.PixelOffsetX + b.TexWidth - 1);
 
             for (var row = Math.Max(0, drawTopY); row < Math.Min(RH, drawBotY); row++)
             {
-                var texY = Math.Clamp((int)((row - drawTopY) * PickupTexSize / (double)screenH),
-                    0, PickupTexSize - 1);
+                var texY = (int)((row - drawTopY) * b.TexHeight / (double)screenH);
+                texY = Math.Clamp(texY, 0, b.TexHeight - 1);
 
-                var c = _pickupPixels[texY * PickupTexSize + texX];
+                var c = b.Pixels[texY * b.TexStride + texX];
                 if (c.A < 10) continue;
 
-                _fb[row * RW + col] = new Color(
-                    (byte)Math.Clamp(c.R * fog, 0, 255),
-                    (byte)Math.Clamp(c.G * fog, 0, 255),
-                    (byte)Math.Clamp(c.B * fog, 0, 255));
+                var r = (byte)Math.Clamp(c.R * fog + warmth * 180, 0, 255);
+                var g = (byte)Math.Clamp(c.G * fog + warmth * 90, 0, 255);
+                var bv = (byte)Math.Clamp(c.B * fog, 0, 255);
+
+                if (b.ApplyHurtTint)
+                {
+                    r  = (byte)Math.Min(255, r + 80);
+                    g  = (byte)Math.Max(0, g - 40);
+                    bv = (byte)Math.Max(0, bv - 40);
+                }
+
+                _fb[row * RW + col] = new Color(r, g, bv, c.A);
             }
+        }
+
+        var hb = b.HealthBar;
+        if (hb.HasValue)
+            DrawHealthBar(screenX, drawTopY, screenW, hb.Value.current, hb.Value.max, transY);
+    }
+
+    private void DrawHealthBar(int screenX, int drawTopY, int screenW,
+        int current, int max, double transY)
+    {
+        if (current >= max) return;
+        if (screenX < 0 || screenX >= RW) return;
+        if (_zBuf[screenX] < transY) return;
+
+        const int barH = 3;
+        const int gap  = 3;
+        var barY = drawTopY - gap - barH;
+        if (barY < 0) return;
+
+        var barLeft = screenX - screenW / 2;
+        var frac    = (float)current / max;
+        var fillEnd = barLeft + (int)(screenW * frac);
+
+        var fillCol = frac > 0.6f ? new Color(60, 200, 60)
+            : frac > 0.3f         ? new Color(220, 180, 0)
+            :                       new Color(220, 50, 40);
+        var bgCol = new Color(20, 20, 20);
+
+        for (var row = barY; row < barY + barH; row++)
+        {
+            if (row < 0 || row >= RH) continue;
+            var colStart = Math.Max(0, barLeft);
+            var colEnd   = Math.Min(RW, barLeft + screenW);
+            for (var col = colStart; col < colEnd; col++)
+                _fb[row * RW + col] = col < fillEnd ? fillCol : bgCol;
         }
     }
 
     // ── Shooting hit-test ─────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns the closest enemy that the center crosshair ray hits,
-    /// within the given range. Call this when the player fires.
-    /// </summary>
     public Enemy? RaycastShoot(ICamera camera, List<Enemy> enemies, double maxRange = 6.0)
     {
-        // Find which enemy is closest to the center column
         Enemy? best = null;
         var bestDist = maxRange;
 
@@ -553,12 +401,10 @@ public class RaycasterRenderer : IDisposable
 
             if (transY <= 0.1 || transY > maxRange) continue;
 
-            // Sprite screen center X
             var screenX = (int)(RW / 2 * (1.0 + transX / transY));
             var screenH = Math.Abs((int)(RH / transY));
             var halfW = screenH / 4;
 
-            // Is center column within sprite's screen X range?
             if (Math.Abs(screenX - RW / 2) < halfW && transY < bestDist &&
                 _zBuf[RW / 2] >= transY)
             {

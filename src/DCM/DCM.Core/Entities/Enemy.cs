@@ -1,3 +1,4 @@
+#nullable enable
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using System;
@@ -12,7 +13,7 @@ public enum EnemyState
     Dead
 }
 
-public class Enemy
+public class Enemy : IBillboard
 {
     public const int MaxHealth = 60;
 
@@ -25,6 +26,10 @@ public class Enemy
     public bool IsHurt => _hurtTimer > 0;
     public double DistSq { get; set; }
     public EnemySpriteSheet SpriteSheet { get; }
+
+    public Action? OnHurt { get; set; }
+    public Action? OnDied { get; set; }
+
     private const float PatrolFps = 3f;
     private const float ChaseFps = 10f;
 
@@ -92,7 +97,6 @@ public class Enemy
                     target.TakeDamage(15);
                     _attackCooldown = 1.2f;
                 }
-
                 break;
         }
 
@@ -104,6 +108,39 @@ public class Enemy
             AnimFrame = (AnimFrame + 1) % SpriteSheet.FrameCount;
         }
     }
+
+    public void Hit(int damage)
+    {
+        if (IsDead) return;
+        Health -= damage;
+        _hurtTimer = 0.3f;
+        State = EnemyState.Chase;
+        if (Health <= 0)
+        {
+            Health = 0;
+            State = EnemyState.Dead;
+            OnDied?.Invoke();
+        }
+        else
+        {
+            OnHurt?.Invoke();
+        }
+    }
+
+    // ── IBillboard ───────────────────────────────────────────────────────────
+
+    Color[]         IBillboard.Pixels        => SpriteSheet.Pixels;
+    int             IBillboard.TexWidth      => SpriteSheet.FrameWidth;
+    int             IBillboard.TexHeight     => SpriteSheet.Height;
+    int             IBillboard.TexStride     => SpriteSheet.Width;
+    int             IBillboard.PixelOffsetX  => AnimFrame * SpriteSheet.FrameWidth;
+    bool            IBillboard.IsVisible     => !IsDead;
+    bool            IBillboard.ApplyHurtTint => IsHurt;
+    int             IBillboard.HeightDivisor => 1;
+    double          IBillboard.VerticalShift => 0.0;
+    (int, int)?     IBillboard.HealthBar     => (Health, MaxHealth);
+
+    // ── Private helpers ──────────────────────────────────────────────────────
 
     private void DoPatrol(float dt, IMap map)
     {
@@ -149,20 +186,6 @@ public class Enemy
             var cy = (int)(PosY + dy * t);
             if (map.IsWall(cx, cy)) return false;
         }
-
         return true;
-    }
-
-    public void Hit(int damage)
-    {
-        if (IsDead) return;
-        Health -= damage;
-        _hurtTimer = 0.3f;
-        State = EnemyState.Chase;
-        if (Health <= 0)
-        {
-            Health = 0;
-            State = EnemyState.Dead;
-        }
     }
 }

@@ -13,6 +13,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DCM.Core.Screens;
 
@@ -23,7 +24,7 @@ public class PlayScreen : IGameScreen
     private readonly Player _player;
     private readonly Map _map;
     private readonly List<Enemy> _enemies;
-    private readonly HealthPickup _pickup;
+    private readonly List<IPickup> _pickups;
     private readonly Func<IGameScreen> _toLevelSelect;
     private readonly Func<IGameScreen>? _toNextLevel;
     private readonly PlaySounds _sounds;
@@ -63,13 +64,20 @@ public class PlayScreen : IGameScreen
         }
 
         _player = new Player(_map.StartX, _map.StartY, _map.StartAngle);
-        _pickup = new HealthPickup(_map.PickupSpawn.x, _map.PickupSpawn.y);
+        _player.OnDamaged = () => _sounds.PlayerOuch.Play();
+        _player.OnDied    = () => _sounds.PlayerDeath.Play();
+
+        _pickups = new List<IPickup> { new HealthPickup(_map.PickupSpawn.x, _map.PickupSpawn.y) };
+
         _enemies = new List<Enemy>();
         var sheetIndex = 0;
         foreach (var spawn in _map.EnemySpawns)
         {
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
-            _enemies.Add(new Enemy(spawn.x, spawn.y, sheets[sheetIndex % sheetCount]));
+            var enemy = new Enemy(spawn.x, spawn.y, sheets[sheetIndex % sheetCount]);
+            enemy.OnHurt = () => _sounds.EnemyOuch.Play();
+            enemy.OnDied = () => _sounds.EnemyDeath.Play();
+            _enemies.Add(enemy);
             sheetIndex++;
         }
 
@@ -142,20 +150,10 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift),
                 mouseDeltaX));
 
-            if (_pickup.TryCollect(_player.PosX, _player.PosY))
-                _player.Heal(HealthPickup.HealAmount);
+            foreach (var p in _pickups) p.TryCollect(_player);
+            foreach (var e in _enemies) e.Update(gameTime, _player, _map);
 
-            // Capture hurt timer after player update (decremented) but before enemy update (may set it)
-            var hurtBefore = _player.HurtTimer;
-            foreach (var e in _enemies)
-                e.Update(gameTime, _player, _map);
-            if (_player.HurtTimer > hurtBefore)
-            {
-                if (_player.IsDead && !_gameOver)
-                    _sounds.PlayerDeath.Play();
-                else
-                    _sounds.PlayerOuch.Play();
-            }
+            if (_player.IsDead) _gameOver = true;
 
             var lmbJustPressed = mouse.LeftButton == ButtonState.Pressed &&
                                  prevMouse.LeftButton != ButtonState.Pressed;
@@ -163,18 +161,9 @@ public class PlayScreen : IGameScreen
             {
                 _renderer.MuzzleFlash = 1f;
                 _sounds.Gunshot.Play();
-                var hit = _renderer.RaycastShoot(_player, _enemies);
-                if (hit != null)
-                {
-                    hit.Hit(30);
-                    if (hit.IsDead)
-                        _sounds.EnemyDeath.Play();
-                    else
-                        _sounds.EnemyOuch.Play();
-                }
+                _renderer.RaycastShoot(_player, _enemies)?.Hit(30);
             }
 
-            if (_player.IsDead) _gameOver = true;
             if (_player.ReachedExit && !_won)
             {
                 _won = true;
@@ -191,7 +180,7 @@ public class PlayScreen : IGameScreen
 
     public void Draw(GameTime gameTime)
     {
-        _renderer.Render(gameTime, _player, _map, _enemies, _pickup);
+        _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest);
     }

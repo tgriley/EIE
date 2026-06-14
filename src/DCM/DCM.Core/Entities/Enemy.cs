@@ -14,9 +14,11 @@ public enum EnemyState
 
 public class Enemy
 {
+    public const int MaxHealth = 60;
+
     public double PosX { get; private set; }
     public double PosY { get; private set; }
-    public int Health { get; private set; } = 60;
+    public int Health { get; private set; } = MaxHealth;
     public bool IsDead => State == EnemyState.Dead;
     public EnemyState State { get; private set; } = EnemyState.Patrol;
     public int AnimFrame { get; private set; } = 0;

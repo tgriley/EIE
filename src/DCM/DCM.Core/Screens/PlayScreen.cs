@@ -1,11 +1,13 @@
 #nullable enable
 using DCM.Core;
+using DCM.Core.Audio;
 using DCM.Core.Entities;
 using DCM.Core.Input;
 using DCM.Core.Rendering;
 using DCM.Core.UI;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -23,6 +25,7 @@ public class PlayScreen : IGameScreen
     private readonly List<Enemy> _enemies;
     private readonly Func<IGameScreen> _toLevelSelect;
     private readonly Func<IGameScreen>? _toNextLevel;
+    private readonly PlaySounds _sounds;
     private readonly bool _hasNextLevel;
     private readonly int _levelIndex;
 
@@ -38,15 +41,16 @@ public class PlayScreen : IGameScreen
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
-        int levelIndex, Func<IGameScreen> toLevelSelect, Func<IGameScreen>? toNextLevel)
+        int levelIndex, Func<IGameScreen> toLevelSelect, Func<IGameScreen>? toNextLevel,
+        SoundEffect clickSound, PlaySounds sounds)
     {
-        _levelIndex = levelIndex;
-        _map = Map.GetLevel(levelIndex);
+        _levelIndex    = levelIndex;
+        _map           = Map.GetLevel(levelIndex);
         _toLevelSelect = toLevelSelect;
-        _toNextLevel = toNextLevel;
-        _hasNextLevel = toNextLevel != null;
+        _toNextLevel   = toNextLevel;
+        _hasNextLevel  = toNextLevel != null;
+        _sounds        = sounds;
 
-        // Load enemy spritesheets (one per sheet index, assigned round-robin to spawns)
         const int sheetCount = 5;
         var sheets = new EnemySpriteSheet[sheetCount];
         for (var i = 0; i < sheetCount; i++)
@@ -83,7 +87,7 @@ public class PlayScreen : IGameScreen
             wallPix, wallTex.Width, wallTex.Height,
             floorPix, floorTex.Width, floorTex.Height,
             ceilPix, ceilTex.Width, ceilTex.Height);
-        _hud = new HUD(sb, font, gd);
+        _hud = new HUD(sb, font, gd, clickSound);
 
         Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
     }
@@ -101,14 +105,15 @@ public class PlayScreen : IGameScreen
         if (_paused)
         {
             var action = _hud.UpdatePause(mouse, prevMouse);
-            if (action == HudAction.Resume) _paused = false;
-            if (action == HudAction.Quit) return null;
+            if (action == HudAction.Resume)   _paused = false;
+            if (action == HudAction.MainMenu) return _toLevelSelect();
+            if (action == HudAction.Quit)     return null;
         }
         else if (_gameOver || _won)
         {
             var action = _hud.UpdateEnd(mouse, prevMouse, _hasNextLevel);
             if (action == HudAction.NextLevel) return _toNextLevel!();
-            if (action == HudAction.MainMenu) return _toLevelSelect();
+            if (action == HudAction.MainMenu)  return _toLevelSelect();
         }
         else
         {
@@ -117,7 +122,6 @@ public class PlayScreen : IGameScreen
             {
                 /* _showFullMap toggle — wired when minimap supports it */
             }
-
             _prevM = mDown;
 
             _elapsed += dt;
@@ -136,21 +140,40 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift),
                 mouseDeltaX));
 
+            // Capture hurt timer after player update (decremented) but before enemy update (may set it)
+            var hurtBefore = _player.HurtTimer;
             foreach (var e in _enemies)
                 e.Update(gameTime, _player, _map);
+            if (_player.HurtTimer > hurtBefore)
+            {
+                if (_player.IsDead && !_gameOver)
+                    _sounds.PlayerDeath.Play();
+                else
+                    _sounds.PlayerOuch.Play();
+            }
 
             var lmbJustPressed = mouse.LeftButton == ButtonState.Pressed &&
                                  prevMouse.LeftButton != ButtonState.Pressed;
             if (lmbJustPressed && _player.TryAttack())
             {
                 _renderer.MuzzleFlash = 1f;
-                _renderer.RaycastShoot(_player, _enemies)?.Hit(30);
+                _sounds.Gunshot.Play();
+                var hit = _renderer.RaycastShoot(_player, _enemies);
+                if (hit != null)
+                {
+                    hit.Hit(30);
+                    if (hit.IsDead)
+                        _sounds.EnemyDeath.Play();
+                    else
+                        _sounds.EnemyOuch.Play();
+                }
             }
 
             if (_player.IsDead) _gameOver = true;
             if (_player.ReachedExit && !_won)
             {
                 _won = true;
+                _sounds.Win.Play();
                 var prevBest = LevelProgress.GetBestTime(_levelIndex);
                 LevelProgress.RecordTime(_levelIndex, _elapsed);
                 _isNewBest = _elapsed < prevBest || prevBest >= float.MaxValue;

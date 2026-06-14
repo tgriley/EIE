@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -15,6 +16,7 @@ public enum MenuAction
 public class MainMenu : IDisposable
 {
     private readonly UIPainter _painter;
+    private readonly SoundEffect _clickSound;
 
     private const int SW = 1280;
     private const int SH = 720;
@@ -25,9 +27,10 @@ public class MainMenu : IDisposable
     private readonly Button _startButton;
     private readonly Button _exitButton;
 
-    public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd)
+    public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
     {
         _painter = new UIPainter(sb, font, gd);
+        _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _startButton = new Button(new Rectangle(btnX, SH / 2 + 20, btnW, btnH), "START", _painter);
@@ -36,8 +39,8 @@ public class MainMenu : IDisposable
 
     public MenuAction Update(MouseState mouse, MouseState prevMouse)
     {
-        if (_startButton.IsClicked(mouse, prevMouse)) return MenuAction.Start;
-        if (_exitButton.IsClicked(mouse, prevMouse)) return MenuAction.Exit;
+        if (_startButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Start; }
+        if (_exitButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Exit; }
         return MenuAction.None;
     }
 

@@ -2,6 +2,7 @@ using DCM.Core;
 using DCM.Core.Entities;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -21,6 +22,7 @@ public enum HudAction
 public class HUD : IDisposable
 {
     private readonly UIPainter _painter;
+    private readonly SoundEffect _clickSound;
     private readonly Button _resumeButton;
     private readonly Button _quitButton;
     private readonly Button _mainMenuButton;
@@ -47,28 +49,30 @@ public class HUD : IDisposable
 
     private float _controlsTimer = 12f;
 
-    public HUD(SpriteBatch sb, SpriteFont font, GraphicsDevice gd)
+    public HUD(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
     {
         _painter = new UIPainter(sb, font, gd);
+        _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-        _resumeButton   = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "RESUME",       _painter);
-        _quitButton     = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "QUIT",         _painter);
-        _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "NEXT LEVEL",  _painter);
-        _mainMenuButton = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "LEVEL SELECT", _painter);
+        _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",       _painter);
+        _mainMenuButton  = new Button(new Rectangle(btnX, SH / 2 + 80,  btnW, btnH), "LEVEL SELECT", _painter);
+        _quitButton      = new Button(new Rectangle(btnX, SH / 2 + 150, btnW, btnH), "QUIT",         _painter);
+        _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "NEXT LEVEL",   _painter);
     }
 
     public HudAction UpdatePause(MouseState mouse, MouseState prevMouse)
     {
-        if (_resumeButton.IsClicked(mouse, prevMouse)) return HudAction.Resume;
-        if (_quitButton.IsClicked(mouse, prevMouse)) return HudAction.Quit;
+        if (_resumeButton.IsClicked(mouse, prevMouse))   { _clickSound.Play(); return HudAction.Resume; }
+        if (_mainMenuButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.MainMenu; }
+        if (_quitButton.IsClicked(mouse, prevMouse))     { _clickSound.Play(); return HudAction.Quit; }
         return HudAction.None;
     }
 
     public HudAction UpdateEnd(MouseState mouse, MouseState prevMouse, bool hasNextLevel)
     {
-        if (hasNextLevel && _nextLevelButton.IsClicked(mouse, prevMouse)) return HudAction.NextLevel;
-        if (_mainMenuButton.IsClicked(mouse, prevMouse)) return HudAction.MainMenu;
+        if (hasNextLevel && _nextLevelButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.NextLevel; }
+        if (_mainMenuButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.MainMenu; }
         return HudAction.None;
     }
 
@@ -227,6 +231,7 @@ public class HUD : IDisposable
         var ts = _painter.Measure(title);
         _painter.DrawTextShadow(title, new Vector2((SW - ts.X) / 2, SH / 2 - 60), ColText);
         _resumeButton.Draw(mousePos);
+        _mainMenuButton.Draw(mousePos);
         _quitButton.Draw(mousePos);
     }
 

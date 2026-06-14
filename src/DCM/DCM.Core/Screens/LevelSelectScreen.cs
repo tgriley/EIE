@@ -3,6 +3,7 @@ using DCM.Core;
 using DCM.Core.UI;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -17,6 +18,7 @@ public class LevelSelectScreen : IGameScreen
     private readonly Button _backButton;
     private readonly Func<int, IGameScreen> _createPlay;
     private readonly Func<IGameScreen> _createMenu;
+    private readonly SoundEffect _clickSound;
 
     public bool IsMouseVisible => true;
 
@@ -29,11 +31,12 @@ public class LevelSelectScreen : IGameScreen
     private static readonly Color ColLockedBorder = new(50, 45, 40);
     private static readonly Color ColLockedText = new(80, 75, 70);
 
-    public LevelSelectScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, Func<int, IGameScreen> createPlay, Func<IGameScreen> createMenu)
+    public LevelSelectScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, Func<int, IGameScreen> createPlay, Func<IGameScreen> createMenu, SoundEffect clickSound)
     {
         _painter = new UIPainter(sb, font, gd);
         _createPlay = createPlay;
         _createMenu = createMenu;
+        _clickSound = clickSound;
 
         const int cols = 5;
         const int btnW = 200, btnH = 60, gapX = 20, gapY = 24;
@@ -58,12 +61,15 @@ public class LevelSelectScreen : IGameScreen
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
-        if (_backButton.IsClicked(mouse, prevMouse)) return _createMenu();
+        if (_backButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return _createMenu(); }
 
         for (var i = 0; i < _levelButtons.Length; i++)
         {
             if (LevelProgress.IsUnlocked(i) && _levelButtons[i].IsClicked(mouse, prevMouse))
+            {
+                _clickSound.Play();
                 return _createPlay(i);
+            }
         }
 
         return this;

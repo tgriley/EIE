@@ -1,6 +1,7 @@
 #nullable enable
 using DCM.Core.UI;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -15,9 +16,9 @@ public class MenuScreen : IGameScreen
     public bool IsMouseVisible => true;
 
     public MenuScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
-        Func<IGameScreen> createLevelSelect)
+        Func<IGameScreen> createLevelSelect, SoundEffect clickSound)
     {
-        _menu = new MainMenu(sb, font, gd);
+        _menu = new MainMenu(sb, font, gd, clickSound);
         _createLevelSelect = createLevelSelect;
     }
 

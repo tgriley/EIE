@@ -421,6 +421,37 @@ public class RaycasterRenderer : IDisposable
                 _fb[row * RW + col] = new Color(r, g, b, c.A);
             }
         }
+
+        DrawEnemyHealthBar(screenX, drawTopY, screenW, enemy, transY);
+    }
+
+    private void DrawEnemyHealthBar(int screenX, int drawTopY, int screenW, Enemy enemy, double transY)
+    {
+        if (enemy.Health >= Enemy.MaxHealth) return;
+        if (screenX < 0 || screenX >= RW) return;
+        if (_zBuf[screenX] < transY) return; // hidden behind wall
+
+        const int barH = 3;
+        const int gap  = 3; // pixels above sprite top
+        var barY = drawTopY - gap - barH;
+        if (barY < 0) return;
+
+        var barLeft = screenX - screenW / 2;
+        var frac    = (float)enemy.Health / Enemy.MaxHealth;
+        var fillEnd = barLeft + (int)(screenW * frac);
+
+        var fillCol = frac > 0.6f ? new Color(60, 200, 60)
+            : frac > 0.3f        ? new Color(220, 180, 0)
+            :                      new Color(220, 50, 40);
+        var bgCol = new Color(20, 20, 20);
+
+        for (var row = barY; row < barY + barH; row++)
+        {
+            var colStart = Math.Max(0, barLeft);
+            var colEnd   = Math.Min(RW, barLeft + screenW);
+            for (var col = colStart; col < colEnd; col++)
+                _fb[row * RW + col] = col < fillEnd ? fillCol : bgCol;
+        }
     }
 
     // ── Shooting hit-test ─────────────────────────────────────────────────

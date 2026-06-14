@@ -31,6 +31,9 @@ public class Map : IMap
     // Torch positions (tile coords where wall has a torch)
     public readonly (int x, int y)[] TorchPositions;
 
+    // Health pickup spawn (one per level, chosen randomly at startup)
+    public readonly (int x, int y) PickupSpawn;
+
     // 16x16 level. Row 0 = top (y=0), Col 0 = left (x=0).
     private static readonly int[,] _level1Tiles = new int[,]
     {
@@ -383,6 +386,31 @@ public class Map : IMap
         StartAngle = startAngle;
         EnemySpawns = enemySpawns;
         TorchPositions = torchPositions;
+        PickupSpawn = ChoosePickupSpawn();
+    }
+
+    private (int x, int y) ChoosePickupSpawn()
+    {
+        var rng = new Random();
+        var startTileX = (int)StartX;
+        var startTileY = (int)StartY;
+
+        var candidates = new System.Collections.Generic.List<(int, int)>();
+        for (var ty = 0; ty < Height; ty++)
+        for (var tx = 0; tx < Width; tx++)
+        {
+            if (_tiles[ty, tx] != Tile.Empty) continue;
+            if (Math.Abs(tx - startTileX) <= 3 && Math.Abs(ty - startTileY) <= 3) continue;
+            var blocked = false;
+            foreach (var s in EnemySpawns)
+                if (s.x == tx && s.y == ty) { blocked = true; break; }
+            if (blocked || !IsValidSpawn(tx, ty)) continue;
+            candidates.Add((tx, ty));
+        }
+
+        return candidates.Count > 0
+            ? candidates[rng.Next(candidates.Count)]
+            : (startTileX + 4, startTileY);
     }
 
     public int GetTile(int x, int y)

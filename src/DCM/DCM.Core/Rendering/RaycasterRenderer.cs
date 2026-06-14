@@ -45,6 +45,10 @@ public class RaycasterRenderer : IDisposable
     // 1×1 white pixel for rectangles (muzzle flash overlay)
     private readonly Texture2D _pixel;
 
+    // Health pickup billboard sprite (16×16, generated once)
+    private static readonly Color[] _pickupPixels = GeneratePickupSprite();
+    private const int PickupTexSize = 16;
+
     // Fog: beyond this perpDist everything is pitch black
     private const double FogStart = 1.5;
     private const double FogEnd = 9.0;
@@ -84,7 +88,8 @@ public class RaycasterRenderer : IDisposable
 
     // ── Main render entry ─────────────────────────────────────────────────
 
-    public void Render(GameTime gameTime, ICamera camera, IMap map, List<Enemy> enemies)
+    public void Render(GameTime gameTime, ICamera camera, IMap map, List<Enemy> enemies,
+        HealthPickup? pickup = null)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -92,6 +97,8 @@ public class RaycasterRenderer : IDisposable
         DrawFloor(camera);
         CastWalls(camera, map);
         RenderEnemies(camera, enemies);
+        if (pickup != null && !pickup.IsCollected)
+            DrawPickupBillboard(camera, pickup.PosX, pickup.PosY);
 
         // Upload frame buffer
         _fbTex.SetData(_fb);
@@ -451,6 +458,73 @@ public class RaycasterRenderer : IDisposable
             var colEnd   = Math.Min(RW, barLeft + screenW);
             for (var col = colStart; col < colEnd; col++)
                 _fb[row * RW + col] = col < fillEnd ? fillCol : bgCol;
+        }
+    }
+
+    // ── Health pickup rendering ───────────────────────────────────────────
+
+    private static Color[] GeneratePickupSprite()
+    {
+        const int sz = PickupTexSize;
+        var pixels = new Color[sz * sz];
+        for (var y = 0; y < sz; y++)
+        for (var x = 0; x < sz; x++)
+        {
+            var inBox    = x >= 2 && x < 14 && y >= 2 && y < 14;
+            var onBorder = inBox && (x == 2 || x == 13 || y == 2 || y == 13);
+            var inCross  = (x >= 6 && x < 10 && y >= 2 && y < 14) ||
+                           (x >= 2 && x < 14 && y >= 6 && y < 10);
+
+            pixels[y * sz + x] = !inBox  ? Color.Transparent
+                : inCross                 ? new Color(220, 40,  40)   // red cross
+                : onBorder                ? new Color(50,  50,  50)   // dark border
+                :                          new Color(200, 200, 195);  // light fill
+        }
+        return pixels;
+    }
+
+    private void DrawPickupBillboard(ICamera camera, double posX, double posY)
+    {
+        var relX = posX - camera.PosX;
+        var relY = posY - camera.PosY;
+
+        var invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
+        var transX = invDet * (camera.DirY * relX - camera.DirX * relY);
+        var transY = invDet * (-camera.PlaneY * relX + camera.PlaneX * relY);
+
+        if (transY <= 0.05) return;
+
+        // Half-height so the kit appears as a small floor item
+        var screenH  = Math.Abs((int)(RH / transY)) / 2;
+        var screenW  = screenH;
+        var drawTopY = RH / 2;               // sits on the floor (below horizon)
+        var drawBotY = RH / 2 + screenH;
+        var screenX  = (int)(RW / 2 * (1.0 + transX / transY));
+        var drawLeft = screenX - screenW / 2;
+        var drawRight = screenX + screenW / 2;
+
+        var fog = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
+
+        for (var col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
+        {
+            if (_zBuf[col] < transY) continue;
+
+            var texX = Math.Clamp((int)((col - drawLeft) * PickupTexSize / (double)screenW),
+                0, PickupTexSize - 1);
+
+            for (var row = Math.Max(0, drawTopY); row < Math.Min(RH, drawBotY); row++)
+            {
+                var texY = Math.Clamp((int)((row - drawTopY) * PickupTexSize / (double)screenH),
+                    0, PickupTexSize - 1);
+
+                var c = _pickupPixels[texY * PickupTexSize + texX];
+                if (c.A < 10) continue;
+
+                _fb[row * RW + col] = new Color(
+                    (byte)Math.Clamp(c.R * fog, 0, 255),
+                    (byte)Math.Clamp(c.G * fog, 0, 255),
+                    (byte)Math.Clamp(c.B * fog, 0, 255));
+            }
         }
     }
 

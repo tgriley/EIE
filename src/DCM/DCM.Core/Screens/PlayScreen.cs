@@ -23,6 +23,7 @@ public class PlayScreen : IGameScreen
     private readonly Player _player;
     private readonly Map _map;
     private readonly List<Enemy> _enemies;
+    private readonly HealthPickup _pickup;
     private readonly Func<IGameScreen> _toLevelSelect;
     private readonly Func<IGameScreen>? _toNextLevel;
     private readonly PlaySounds _sounds;
@@ -62,6 +63,7 @@ public class PlayScreen : IGameScreen
         }
 
         _player = new Player(_map.StartX, _map.StartY, _map.StartAngle);
+        _pickup = new HealthPickup(_map.PickupSpawn.x, _map.PickupSpawn.y);
         _enemies = new List<Enemy>();
         var sheetIndex = 0;
         foreach (var spawn in _map.EnemySpawns)
@@ -140,6 +142,9 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift),
                 mouseDeltaX));
 
+            if (_pickup.TryCollect(_player.PosX, _player.PosY))
+                _player.Heal(HealthPickup.HealAmount);
+
             // Capture hurt timer after player update (decremented) but before enemy update (may set it)
             var hurtBefore = _player.HurtTimer;
             foreach (var e in _enemies)
@@ -186,7 +191,7 @@ public class PlayScreen : IGameScreen
 
     public void Draw(GameTime gameTime)
     {
-        _renderer.Render(gameTime, _player, _map, _enemies);
+        _renderer.Render(gameTime, _player, _map, _enemies, _pickup);
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest);
     }

@@ -1,3 +1,4 @@
+using DCM.Core;
 using DCM.Core.Entities;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
@@ -13,7 +14,8 @@ public enum HudAction
     None,
     Resume,
     Quit,
-    MainMenu
+    MainMenu,
+    NextLevel
 }
 
 public class HUD : IDisposable
@@ -22,6 +24,7 @@ public class HUD : IDisposable
     private readonly Button _resumeButton;
     private readonly Button _quitButton;
     private readonly Button _mainMenuButton;
+    private readonly Button _nextLevelButton;
 
     private const int MapTileSize = 8;
     private const int MapPadding = 12;
@@ -49,9 +52,10 @@ public class HUD : IDisposable
         _painter = new UIPainter(sb, font, gd);
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-        _resumeButton = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "RESUME", _painter);
-        _quitButton = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "QUIT", _painter);
-        _mainMenuButton = new Button(new Rectangle(btnX, SH / 2 + 70, btnW, btnH), "MAIN MENU", _painter);
+        _resumeButton   = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "RESUME",       _painter);
+        _quitButton     = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "QUIT",         _painter);
+        _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), "NEXT LEVEL",  _painter);
+        _mainMenuButton = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), "LEVEL SELECT", _painter);
     }
 
     public HudAction UpdatePause(MouseState mouse, MouseState prevMouse)
@@ -61,14 +65,16 @@ public class HUD : IDisposable
         return HudAction.None;
     }
 
-    public HudAction UpdateEnd(MouseState mouse, MouseState prevMouse)
+    public HudAction UpdateEnd(MouseState mouse, MouseState prevMouse, bool hasNextLevel)
     {
+        if (hasNextLevel && _nextLevelButton.IsClicked(mouse, prevMouse)) return HudAction.NextLevel;
         if (_mainMenuButton.IsClicked(mouse, prevMouse)) return HudAction.MainMenu;
         return HudAction.None;
     }
 
     public void Draw(GameTime gameTime, Player player, List<Enemy> enemies,
-        IMap map, bool gameOver, bool won, bool paused = false)
+        IMap map, bool gameOver, bool won, bool paused = false, bool hasNextLevel = false,
+        float elapsed = 0f, float bestTime = float.MaxValue, bool isNewBest = false)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (!paused) _controlsTimer -= dt;
@@ -84,7 +90,7 @@ public class HUD : IDisposable
         }
         else if (gameOver || won)
         {
-            DrawEndOverlay(won, mousePos);
+            DrawEndOverlay(won, hasNextLevel, elapsed, bestTime, isNewBest, mousePos);
         }
         else
         {
@@ -92,6 +98,7 @@ public class HUD : IDisposable
             DrawHealthBar(player);
             DrawMonsterCounter(enemies);
             DrawObjectiveText();
+            DrawTimer(elapsed);
             DrawCrosshair();
             if (_controlsTimer > 0) DrawControls();
             DrawHurtFlash(player);
@@ -223,14 +230,47 @@ public class HUD : IDisposable
         _quitButton.Draw(mousePos);
     }
 
-    private void DrawEndOverlay(bool won, Point mousePos)
+    private void DrawTimer(float elapsed)
+    {
+        var text = LevelProgress.FormatTime(elapsed);
+        var size = _painter.Measure(text);
+        int px = SW - (int)size.X - 22, py = 8;
+        _painter.DrawRect(px - 8, py - 4, (int)size.X + 16, 28, ColPanelBg);
+        _painter.DrawTextShadow(text, new Vector2(px, py), ColText);
+    }
+
+    private void DrawEndOverlay(bool won, bool hasNextLevel,
+        float elapsed, float bestTime, bool isNewBest, Point mousePos)
     {
         _painter.DrawRect(0, 0, SW, SH, new Color(0, 0, 0, 180));
 
         var title = won ? "YOU ESCAPED!" : "YOU DIED";
         var tc = won ? new Color(60, 220, 60) : new Color(220, 40, 40);
+        _painter.DrawTextShadow(title,
+            new Vector2((SW - _painter.Measure(title).X) / 2, SH / 2 - 120), tc);
 
-        _painter.DrawTextShadow(title, new Vector2((SW - _painter.Measure(title).X) / 2, SH / 2 - 60), tc);
+        if (won)
+        {
+            var timeText = $"TIME  {LevelProgress.FormatTime(elapsed)}";
+            _painter.DrawTextShadow(timeText,
+                new Vector2((SW - _painter.Measure(timeText).X) / 2, SH / 2 - 60), ColText);
+
+            if (isNewBest)
+            {
+                const string newBestText = "NEW BEST!";
+                _painter.DrawTextShadow(newBestText,
+                    new Vector2((SW - _painter.Measure(newBestText).X) / 2, SH / 2 - 30),
+                    new Color(255, 215, 0));
+            }
+            else if (bestTime < float.MaxValue)
+            {
+                var bestText = $"BEST  {LevelProgress.FormatTime(bestTime)}";
+                _painter.DrawTextShadow(bestText,
+                    new Vector2((SW - _painter.Measure(bestText).X) / 2, SH / 2 - 30), ColTextDim);
+            }
+        }
+
+        if (won && hasNextLevel) _nextLevelButton.Draw(mousePos);
         _mainMenuButton.Draw(mousePos);
     }
 

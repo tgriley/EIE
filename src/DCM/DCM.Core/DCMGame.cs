@@ -1,16 +1,19 @@
+#nullable enable
 using DCM.Core.Rendering;
 using DCM.Core.Screens;
+using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace DCM.Core;
 
 public class DCMGame : Game
 {
     private readonly GraphicsDeviceManager _graphics;
-    private SpriteBatch _spriteBatch;
-    private IGameScreen _currentScreen;
+    private SpriteBatch _spriteBatch = null!;
+    private IGameScreen _currentScreen = null!;
     private MouseState _prevMouse;
 
     public DCMGame()
@@ -34,14 +37,19 @@ public class DCMGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         var font = Content.Load<SpriteFont>("Fonts/Hud");
 
-        IGameScreen CreateMenu()
-        {
-            return new MenuScreen(_spriteBatch, font, GraphicsDevice, CreatePlay);
-        }
+        IGameScreen CreateMenu() =>
+            new MenuScreen(_spriteBatch, font, GraphicsDevice, CreateLevelSelect);
 
-        IGameScreen CreatePlay()
+        IGameScreen CreateLevelSelect() =>
+            new LevelSelectScreen(_spriteBatch, font, GraphicsDevice, CreatePlay, CreateMenu);
+
+        IGameScreen CreatePlay(int levelIndex)
         {
-            return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content, CreateMenu);
+            Func<IGameScreen>? nextLevel = levelIndex < Map.LevelCount - 1
+                ? () => CreatePlay(levelIndex + 1)
+                : null;
+            return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
+                levelIndex, CreateLevelSelect, nextLevel);
         }
 
         _currentScreen = CreateMenu();

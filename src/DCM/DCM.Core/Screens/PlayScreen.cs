@@ -1,4 +1,5 @@
 #nullable enable
+using DCM.Core;
 using DCM.Core.Entities;
 using DCM.Core.Input;
 using DCM.Core.Rendering;
@@ -20,7 +21,10 @@ public class PlayScreen : IGameScreen
     private readonly Player _player;
     private readonly Map _map;
     private readonly List<Enemy> _enemies;
-    private readonly Func<IGameScreen> _toMenu;
+    private readonly Func<IGameScreen> _toLevelSelect;
+    private readonly Func<IGameScreen>? _toNextLevel;
+    private readonly bool _hasNextLevel;
+    private readonly int _levelIndex;
 
     private bool _gameOver;
     private bool _won;
@@ -28,13 +32,19 @@ public class PlayScreen : IGameScreen
     private bool _prevEsc;
     private bool _prevM;
     private bool _firstInputFrame = true;
+    private float _elapsed;
+    private bool _isNewBest;
 
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
-        Func<IGameScreen> toMenu)
+        int levelIndex, Func<IGameScreen> toLevelSelect, Func<IGameScreen>? toNextLevel)
     {
-        _map = Map.Level1;
+        _levelIndex = levelIndex;
+        _map = Map.GetLevel(levelIndex);
+        _toLevelSelect = toLevelSelect;
+        _toNextLevel = toNextLevel;
+        _hasNextLevel = toNextLevel != null;
 
         // Load enemy spritesheets (one per sheet index, assigned round-robin to spawns)
         const int sheetCount = 5;
@@ -74,7 +84,6 @@ public class PlayScreen : IGameScreen
             floorPix, floorTex.Width, floorTex.Height,
             ceilPix, ceilTex.Width, ceilTex.Height);
         _hud = new HUD(sb, font, gd);
-        _toMenu = toMenu;
 
         Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
     }
@@ -97,8 +106,9 @@ public class PlayScreen : IGameScreen
         }
         else if (_gameOver || _won)
         {
-            var action = _hud.UpdateEnd(mouse, prevMouse);
-            if (action == HudAction.MainMenu) return _toMenu();
+            var action = _hud.UpdateEnd(mouse, prevMouse, _hasNextLevel);
+            if (action == HudAction.NextLevel) return _toNextLevel!();
+            if (action == HudAction.MainMenu) return _toLevelSelect();
         }
         else
         {
@@ -109,6 +119,8 @@ public class PlayScreen : IGameScreen
             }
 
             _prevM = mDown;
+
+            _elapsed += dt;
 
             var mouseDeltaX = _firstInputFrame ? 0 : mouse.X - RaycasterRenderer.RW;
             _firstInputFrame = false;
@@ -136,7 +148,14 @@ public class PlayScreen : IGameScreen
             }
 
             if (_player.IsDead) _gameOver = true;
-            if (_player.ReachedExit) _won = true;
+            if (_player.ReachedExit && !_won)
+            {
+                _won = true;
+                var prevBest = LevelProgress.GetBestTime(_levelIndex);
+                LevelProgress.RecordTime(_levelIndex, _elapsed);
+                _isNewBest = _elapsed < prevBest || prevBest >= float.MaxValue;
+                if (_hasNextLevel) LevelProgress.Unlock(_levelIndex + 1);
+            }
         }
 
         return this;
@@ -145,7 +164,8 @@ public class PlayScreen : IGameScreen
     public void Draw(GameTime gameTime)
     {
         _renderer.Render(gameTime, _player, _map, _enemies);
-        _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused);
+        _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
+            _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest);
     }
 
     public void Dispose()

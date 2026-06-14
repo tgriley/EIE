@@ -12,21 +12,25 @@ public class MenuScreen : IGameScreen
 {
     private readonly MainMenu _menu;
     private readonly Func<IGameScreen> _createLevelSelect;
+    private readonly Func<IGameScreen> _createSettings;
 
     public bool IsMouseVisible => true;
 
     public MenuScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
-        Func<IGameScreen> createLevelSelect, SoundEffect clickSound)
+        Func<IGameScreen> createLevelSelect, Func<IGameScreen> createSettings,
+        SoundEffect clickSound)
     {
-        _menu = new MainMenu(sb, font, gd, clickSound);
+        _menu              = new MainMenu(sb, font, gd, clickSound);
         _createLevelSelect = createLevelSelect;
+        _createSettings    = createSettings;
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
         var action = _menu.Update(mouse, prevMouse);
-        if (action == MenuAction.Start) return _createLevelSelect();
-        if (action == MenuAction.Exit) return null;
+        if (action == MenuAction.Start)    return _createLevelSelect();
+        if (action == MenuAction.Settings) return _createSettings();
+        if (action == MenuAction.Exit)     return null;
         return this;
     }
 

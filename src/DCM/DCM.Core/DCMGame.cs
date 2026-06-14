@@ -50,7 +50,17 @@ public class DCMGame : Game
             CreateWinSound());
 
         IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, GraphicsDevice, CreateLevelSelect, _clickSound);
+            new MenuScreen(_spriteBatch, font, GraphicsDevice, CreateLevelSelect, CreateSettings, _clickSound);
+
+        IGameScreen CreateSettings() =>
+            new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound,
+                GameSettings.ToggleMute,
+                () =>
+                {
+                    GameSettings.ToggleFullscreen();
+                    _graphics.IsFullScreen = GameSettings.IsFullscreen;
+                    _graphics.ApplyChanges();
+                });
 
         IGameScreen CreateLevelSelect() =>
             new LevelSelectScreen(_spriteBatch, font, GraphicsDevice, CreatePlay, CreateMenu, _clickSound);

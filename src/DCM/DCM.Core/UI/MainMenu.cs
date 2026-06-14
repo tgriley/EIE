@@ -10,6 +10,7 @@ public enum MenuAction
 {
     None,
     Start,
+    Settings,
     Exit
 }
 
@@ -21,26 +22,29 @@ public class MainMenu : IDisposable
     private const int SW = 1280;
     private const int SH = 720;
 
-    private static readonly Color ColBg = new(10, 8, 8);
+    private static readonly Color ColBg    = new(10, 8, 8);
     private static readonly Color ColTitle = new(220, 180, 80);
 
     private readonly Button _startButton;
+    private readonly Button _settingsButton;
     private readonly Button _exitButton;
 
     public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
     {
-        _painter = new UIPainter(sb, font, gd);
-        _clickSound = clickSound;
+        _painter     = new UIPainter(sb, font, gd);
+        _clickSound  = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-        _startButton = new Button(new Rectangle(btnX, SH / 2 + 20, btnW, btnH), "START", _painter);
-        _exitButton = new Button(new Rectangle(btnX, SH / 2 + 90, btnW, btnH), "EXIT", _painter);
+        _startButton    = new Button(new Rectangle(btnX, SH / 2 + 20,  btnW, btnH), "START",    _painter);
+        _settingsButton = new Button(new Rectangle(btnX, SH / 2 + 90,  btnW, btnH), "SETTINGS", _painter);
+        _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), "EXIT",     _painter);
     }
 
     public MenuAction Update(MouseState mouse, MouseState prevMouse)
     {
-        if (_startButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Start; }
-        if (_exitButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Exit; }
+        if (_startButton.IsClicked(mouse, prevMouse))    { _clickSound.Play(); return MenuAction.Start; }
+        if (_settingsButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Settings; }
+        if (_exitButton.IsClicked(mouse, prevMouse))     { _clickSound.Play(); return MenuAction.Exit; }
         return MenuAction.None;
     }
 
@@ -60,6 +64,7 @@ public class MainMenu : IDisposable
             ColTitle, titleScale);
 
         _startButton.Draw(mousePos);
+        _settingsButton.Draw(mousePos);
         _exitButton.Draw(mousePos);
 
         const string hint = "W A S D + Mouse to play   |   Esc to pause";

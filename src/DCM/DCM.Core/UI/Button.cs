@@ -30,9 +30,9 @@ public class Button
         return released && _bounds.Contains(mouse.Position);
     }
 
-    public void Draw(Point mousePos)
+    public void Draw(Point mousePos, bool selected = false)
     {
-        var hover = _bounds.Contains(mousePos);
+        var hover = selected || _bounds.Contains(mousePos);
         var bg = hover ? ColBgHov : ColBg;
         var textC = hover ? ColTextHov : ColTextNorm;
         var border = hover ? ColBorderHov : ColBorder;

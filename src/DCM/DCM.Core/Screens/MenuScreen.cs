@@ -27,7 +27,7 @@ public class MenuScreen : IGameScreen
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
-        var action = _menu.Update(mouse, prevMouse);
+        var action = _menu.Update(gameTime, mouse, prevMouse);
         if (action == MenuAction.Start)    return _createLevelSelect();
         if (action == MenuAction.Settings) return _createSettings();
         if (action == MenuAction.Exit)     return null;

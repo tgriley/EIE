@@ -28,30 +28,35 @@ public class HUD : IDisposable
     private readonly Button _mainMenuButton;
     private readonly Button _nextLevelButton;
 
+    // index: 0=Resume, 1=LevelSelect, 2=Quit
+    private readonly MenuNavigator _navPause = new(3);
+    // index: 0=NextLevel (if present), last=LevelSelect
+    private readonly MenuNavigator _navEnd   = new(1);
+
     private const int MapTileSize = 8;
-    private const int MapPadding = 12;
-    private const int MapBorder = 2;
+    private const int MapPadding  = 12;
+    private const int MapBorder   = 2;
     private const int SW = 1280;
     private const int SH = 720;
 
-    private static readonly Color ColWall = new(160, 150, 140);
-    private static readonly Color ColFloor = new(30, 28, 25);
-    private static readonly Color ColPlayer = new(60, 200, 60);
-    private static readonly Color ColEnemy = new(220, 30, 30);
-    private static readonly Color ColExit = new(60, 180, 220);
-    private static readonly Color ColHpBar = new(180, 20, 20);
-    private static readonly Color ColHpBarFull = new(220, 50, 40);
-    private static readonly Color ColBarBg = new(30, 25, 22);
-    private static readonly Color ColPanelBg = new(0, 0, 0, 160);
-    private static readonly Color ColText = new(235, 225, 200);
-    private static readonly Color ColTextDim = new(160, 150, 130);
-    private static readonly Color ColCrosshair = new(255, 255, 255, 180);
+    private static readonly Color ColWall       = new(160, 150, 140);
+    private static readonly Color ColFloor      = new(30, 28, 25);
+    private static readonly Color ColPlayer     = new(60, 200, 60);
+    private static readonly Color ColEnemy      = new(220, 30, 30);
+    private static readonly Color ColExit       = new(60, 180, 220);
+    private static readonly Color ColHpBar      = new(180, 20, 20);
+    private static readonly Color ColHpBarFull  = new(220, 50, 40);
+    private static readonly Color ColBarBg      = new(30, 25, 22);
+    private static readonly Color ColPanelBg    = new(0, 0, 0, 160);
+    private static readonly Color ColText       = new(235, 225, 200);
+    private static readonly Color ColTextDim    = new(160, 150, 130);
+    private static readonly Color ColCrosshair  = new(255, 255, 255, 180);
 
     private float _controlsTimer = 12f;
 
     public HUD(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
     {
-        _painter = new UIPainter(sb, font, gd);
+        _painter    = new UIPainter(sb, font, gd);
         _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
@@ -61,18 +66,43 @@ public class HUD : IDisposable
         _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "NEXT LEVEL",   _painter);
     }
 
-    public HudAction UpdatePause(MouseState mouse, MouseState prevMouse)
+    public HudAction UpdatePause(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
+        _navPause.Update(gameTime);
+
         if (_resumeButton.IsClicked(mouse, prevMouse))   { _clickSound.Play(); return HudAction.Resume; }
         if (_mainMenuButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.MainMenu; }
         if (_quitButton.IsClicked(mouse, prevMouse))     { _clickSound.Play(); return HudAction.Quit; }
+
+        if (_navPause.JustConfirmed)
+        {
+            _clickSound.Play();
+            return _navPause.SelectedIndex switch
+            {
+                0 => HudAction.Resume,
+                1 => HudAction.MainMenu,
+                _ => HudAction.Quit
+            };
+        }
+        if (_navPause.JustCancelled) { _clickSound.Play(); return HudAction.Resume; }
+
         return HudAction.None;
     }
 
-    public HudAction UpdateEnd(MouseState mouse, MouseState prevMouse, bool hasNextLevel)
+    public HudAction UpdateEnd(GameTime gameTime, MouseState mouse, MouseState prevMouse, bool hasNextLevel)
     {
+        _navEnd.ItemCount = hasNextLevel ? 2 : 1;
+        _navEnd.Update(gameTime);
+
         if (hasNextLevel && _nextLevelButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.NextLevel; }
-        if (_mainMenuButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.MainMenu; }
+        if (_mainMenuButton.IsClicked(mouse, prevMouse))                  { _clickSound.Play(); return HudAction.MainMenu; }
+
+        if (_navEnd.JustConfirmed)
+        {
+            _clickSound.Play();
+            return hasNextLevel && _navEnd.SelectedIndex == 0 ? HudAction.NextLevel : HudAction.MainMenu;
+        }
+
         return HudAction.None;
     }
 
@@ -158,7 +188,7 @@ public class HUD : IDisposable
         _painter.DrawTextShadow("HEALTH", new Vector2(panelX, panelY - 20), ColText, 0.85f);
         _painter.DrawRect(panelX, panelY, barW, barH, ColBarBg);
 
-        var frac = player.Health / 100f;
+        var frac  = player.Health / 100f;
         var fillW = (int)(barW * frac);
         if (fillW > 0)
             _painter.DrawRect(panelX, panelY, fillW, barH, frac > 0.5f ? ColHpBarFull : ColHpBar);
@@ -171,8 +201,7 @@ public class HUD : IDisposable
     {
         var alive = 0;
         foreach (var e in enemies)
-            if (!e.IsDead)
-                alive++;
+            if (!e.IsDead) alive++;
 
         int panelX = SW - 172, panelY = SH - 60, barW = 160, barH = 18;
 
@@ -195,9 +224,9 @@ public class HUD : IDisposable
     {
         int cx = SW / 2, cy = SH / 2, len = 8, gap = 3;
         _painter.DrawRect(cx - len - gap, cy - 1, len, 2, ColCrosshair);
-        _painter.DrawRect(cx + gap + 1, cy - 1, len, 2, ColCrosshair);
+        _painter.DrawRect(cx + gap + 1,   cy - 1, len, 2, ColCrosshair);
         _painter.DrawRect(cx - 1, cy - len - gap, 2, len, ColCrosshair);
-        _painter.DrawRect(cx - 1, cy + gap + 1, 2, len, ColCrosshair);
+        _painter.DrawRect(cx - 1, cy + gap + 1,   2, len, ColCrosshair);
     }
 
     private void DrawControls()
@@ -208,7 +237,7 @@ public class HUD : IDisposable
         foreach (var line in new[]
                  {
                      "W A S D  -  Move", "Mouse    -  Look", "< >      -  Turn",
-                     "Shift    -  Run", "LClick   -  Attack", "M        -  Map",
+                     "Shift    -  Run",  "LClick   -  Attack", "M        -  Map",
                      "Esc      -  Pause"
                  })
         {
@@ -230,9 +259,9 @@ public class HUD : IDisposable
         var title = "PAUSED";
         var ts = _painter.Measure(title);
         _painter.DrawTextShadow(title, new Vector2((SW - ts.X) / 2, SH / 2 - 60), ColText);
-        _resumeButton.Draw(mousePos);
-        _mainMenuButton.Draw(mousePos);
-        _quitButton.Draw(mousePos);
+        _resumeButton.Draw(mousePos,   _navPause.IsSelected(0));
+        _mainMenuButton.Draw(mousePos, _navPause.IsSelected(1));
+        _quitButton.Draw(mousePos,     _navPause.IsSelected(2));
     }
 
     private void DrawTimer(float elapsed)
@@ -250,7 +279,7 @@ public class HUD : IDisposable
         _painter.DrawRect(0, 0, SW, SH, new Color(0, 0, 0, 180));
 
         var title = won ? "YOU ESCAPED!" : "YOU DIED";
-        var tc = won ? new Color(60, 220, 60) : new Color(220, 40, 40);
+        var tc    = won ? new Color(60, 220, 60) : new Color(220, 40, 40);
         _painter.DrawTextShadow(title,
             new Vector2((SW - _painter.Measure(title).X) / 2, SH / 2 - 120), tc);
 
@@ -275,8 +304,11 @@ public class HUD : IDisposable
             }
         }
 
-        if (won && hasNextLevel) _nextLevelButton.Draw(mousePos);
-        _mainMenuButton.Draw(mousePos);
+        if (won && hasNextLevel)
+            _nextLevelButton.Draw(mousePos, _navEnd.IsSelected(0));
+
+        var menuNavIndex = (won && hasNextLevel) ? 1 : 0;
+        _mainMenuButton.Draw(mousePos, _navEnd.IsSelected(menuNavIndex));
     }
 
     public void Dispose()

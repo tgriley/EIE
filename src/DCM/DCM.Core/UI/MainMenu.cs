@@ -18,6 +18,7 @@ public class MainMenu : IDisposable
 {
     private readonly UIPainter _painter;
     private readonly SoundEffect _clickSound;
+    private readonly MenuNavigator _nav = new(3);
 
     private const int SW = 1280;
     private const int SH = 720;
@@ -31,8 +32,8 @@ public class MainMenu : IDisposable
 
     public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
     {
-        _painter     = new UIPainter(sb, font, gd);
-        _clickSound  = clickSound;
+        _painter    = new UIPainter(sb, font, gd);
+        _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _startButton    = new Button(new Rectangle(btnX, SH / 2 + 20,  btnW, btnH), "START",    _painter);
@@ -40,11 +41,25 @@ public class MainMenu : IDisposable
         _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), "EXIT",     _painter);
     }
 
-    public MenuAction Update(MouseState mouse, MouseState prevMouse)
+    public MenuAction Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
+        _nav.Update(gameTime);
+
         if (_startButton.IsClicked(mouse, prevMouse))    { _clickSound.Play(); return MenuAction.Start; }
         if (_settingsButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Settings; }
         if (_exitButton.IsClicked(mouse, prevMouse))     { _clickSound.Play(); return MenuAction.Exit; }
+
+        if (_nav.JustConfirmed)
+        {
+            _clickSound.Play();
+            return _nav.SelectedIndex switch
+            {
+                0 => MenuAction.Start,
+                1 => MenuAction.Settings,
+                _ => MenuAction.Exit
+            };
+        }
+
         return MenuAction.None;
     }
 
@@ -63,9 +78,9 @@ public class MainMenu : IDisposable
             new Vector2((SW - titleSize.X * titleScale) / 2f, SH / 2f - 180),
             ColTitle, titleScale);
 
-        _startButton.Draw(mousePos);
-        _settingsButton.Draw(mousePos);
-        _exitButton.Draw(mousePos);
+        _startButton.Draw(mousePos,    _nav.IsSelected(0));
+        _settingsButton.Draw(mousePos, _nav.IsSelected(1));
+        _exitButton.Draw(mousePos,     _nav.IsSelected(2));
 
         const string hint = "W A S D + Mouse to play   |   Esc to pause";
         var hintSize = _painter.Measure(hint);

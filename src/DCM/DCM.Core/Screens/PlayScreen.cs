@@ -39,6 +39,11 @@ public class PlayScreen : IGameScreen
     private bool _firstInputFrame = true;
     private float _elapsed;
     private bool _isNewBest;
+    private GamePadState _prevGamePad;
+
+    private const float StickDeadZone    = 0.20f;
+    private const float TriggerThreshold = 0.50f;
+    private const int   ControllerLookSens = 50;
 
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
@@ -105,23 +110,26 @@ public class PlayScreen : IGameScreen
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
     {
         var kb = Keyboard.GetState();
+        var gp = GamePad.GetState(PlayerIndex.One, GamePadDeadZone.None);
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        var escDown = kb.IsKeyDown(Keys.Escape);
-        if (escDown && !_prevEsc && !_gameOver && !_won)
+        var escDown          = kb.IsKeyDown(Keys.Escape);
+        var startJustPressed = gp.Buttons.Start == ButtonState.Pressed &&
+                               _prevGamePad.Buttons.Start != ButtonState.Pressed;
+        if ((escDown && !_prevEsc || startJustPressed) && !_gameOver && !_won)
             _paused = !_paused;
         _prevEsc = escDown;
 
         if (_paused)
         {
-            var action = _hud.UpdatePause(mouse, prevMouse);
+            var action = _hud.UpdatePause(gameTime, mouse, prevMouse);
             if (action == HudAction.Resume)   _paused = false;
             if (action == HudAction.MainMenu) return _toLevelSelect();
             if (action == HudAction.Quit)     return null;
         }
         else if (_gameOver || _won)
         {
-            var action = _hud.UpdateEnd(mouse, prevMouse, _hasNextLevel);
+            var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _hasNextLevel);
             if (action == HudAction.NextLevel) return _toNextLevel!();
             if (action == HudAction.MainMenu)  return _toLevelSelect();
         }
@@ -136,18 +144,23 @@ public class PlayScreen : IGameScreen
 
             _elapsed += dt;
 
+            var leftX  = Math.Abs(gp.ThumbSticks.Left.X)  > StickDeadZone ? gp.ThumbSticks.Left.X  : 0f;
+            var leftY  = Math.Abs(gp.ThumbSticks.Left.Y)  > StickDeadZone ? gp.ThumbSticks.Left.Y  : 0f;
+            var rightX = Math.Abs(gp.ThumbSticks.Right.X) > StickDeadZone ? gp.ThumbSticks.Right.X : 0f;
+
             var mouseDeltaX = _firstInputFrame ? 0 : mouse.X - RaycasterRenderer.RW;
             _firstInputFrame = false;
             Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
+            mouseDeltaX += (int)(rightX * ControllerLookSens);
 
             _player.Update(dt, _map, new PlayerInput(
-                kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up),
-                kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down),
-                kb.IsKeyDown(Keys.A),
-                kb.IsKeyDown(Keys.D),
+                kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up)   || leftY >  0,
+                kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down)  || leftY <  0,
+                kb.IsKeyDown(Keys.A)                             || leftX < 0,
+                kb.IsKeyDown(Keys.D)                             || leftX >  0,
                 kb.IsKeyDown(Keys.Left),
                 kb.IsKeyDown(Keys.Right),
-                kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift),
+                kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > TriggerThreshold,
                 mouseDeltaX));
 
             foreach (var p in _pickups) p.TryCollect(_player);
@@ -155,9 +168,11 @@ public class PlayScreen : IGameScreen
 
             if (_player.IsDead) _gameOver = true;
 
-            var lmbJustPressed = mouse.LeftButton == ButtonState.Pressed &&
-                                 prevMouse.LeftButton != ButtonState.Pressed;
-            if (lmbJustPressed && _player.TryAttack())
+            var lmbJustPressed     = mouse.LeftButton == ButtonState.Pressed &&
+                                     prevMouse.LeftButton != ButtonState.Pressed;
+            var triggerJustPressed = gp.Triggers.Right > TriggerThreshold &&
+                                     _prevGamePad.Triggers.Right <= TriggerThreshold;
+            if ((lmbJustPressed || triggerJustPressed) && _player.TryAttack())
             {
                 _renderer.MuzzleFlash = 1f;
                 _sounds.Gunshot.Play();
@@ -175,6 +190,7 @@ public class PlayScreen : IGameScreen
             }
         }
 
+        _prevGamePad = gp;
         return this;
     }
 

@@ -37,6 +37,7 @@ public class PlayScreen : IGameScreen
     private bool _prevEsc;
     private bool _prevM;
     private bool _firstInputFrame = true;
+    private bool _cameraRaised;
     private float _elapsed;
     private bool _isNewBest;
     private GamePadState _prevGamePad;
@@ -98,10 +99,13 @@ public class PlayScreen : IGameScreen
         var ceilPix = new Color[ceilTex.Width * ceilTex.Height];
         ceilTex.GetData(ceilPix);
 
+        var weaponTex = content.Load<Texture2D>("Camera");
+
         _renderer = new RaycasterRenderer(gd,
             wallPix, wallTex.Width, wallTex.Height,
             floorPix, floorTex.Width, floorTex.Height,
-            ceilPix, ceilTex.Width, ceilTex.Height);
+            ceilPix, ceilTex.Width, ceilTex.Height,
+            weaponTex);
         _hud = new HUD(sb, font, gd, clickSound);
 
         Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
@@ -153,6 +157,11 @@ public class PlayScreen : IGameScreen
             Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
             mouseDeltaX += (int)(rightX * ControllerLookSens);
 
+            var moving = kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.S) ||
+                         kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.D) ||
+                         kb.IsKeyDown(Keys.Up) || kb.IsKeyDown(Keys.Down) ||
+                         leftX != 0 || leftY != 0;
+
             _player.Update(dt, _map, new PlayerInput(
                 kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up)   || leftY >  0,
                 kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down)  || leftY <  0,
@@ -163,21 +172,17 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > TriggerThreshold,
                 mouseDeltaX));
 
+            if (moving)
+                _renderer.WeaponBobPhase += dt * 7f;
+
+            _cameraRaised = mouse.LeftButton == ButtonState.Pressed ||
+                            gp.Triggers.Right > TriggerThreshold;
+            _renderer.WeaponRaiseTarget = _cameraRaised;
+
             foreach (var p in _pickups) p.TryCollect(_player);
-            foreach (var e in _enemies) e.Update(gameTime, _player, _map);
+            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, _cameraRaised);
 
             if (_player.IsDead) _gameOver = true;
-
-            var lmbJustPressed     = mouse.LeftButton == ButtonState.Pressed &&
-                                     prevMouse.LeftButton != ButtonState.Pressed;
-            var triggerJustPressed = gp.Triggers.Right > TriggerThreshold &&
-                                     _prevGamePad.Triggers.Right <= TriggerThreshold;
-            if ((lmbJustPressed || triggerJustPressed) && _player.TryAttack())
-            {
-                _renderer.MuzzleFlash = 1f;
-                _sounds.Gunshot.Play();
-                _renderer.RaycastShoot(_player, _enemies)?.Hit(30);
-            }
 
             if (_player.ReachedExit && !_won)
             {

@@ -22,7 +22,6 @@ public class Player : ICamera, IDamageable
     public Action? OnDamaged { get; set; }
     public Action? OnDied    { get; set; }
 
-    private float _attackCooldown = 0f;
     private float _damageCooldown = 0f;
 
     private const double MoveSpeed = 2.8;
@@ -59,7 +58,6 @@ public class Player : ICamera, IDamageable
     public void Update(float dt, IMap map, PlayerInput input)
     {
         if (HurtTimer > 0) HurtTimer -= dt;
-        if (_attackCooldown > 0) _attackCooldown -= dt;
         if (_damageCooldown > 0) _damageCooldown -= dt;
 
         var speed = (input.Running ? RunSpeed : MoveSpeed) * dt;
@@ -116,10 +114,4 @@ public class Player : ICamera, IDamageable
         Health = Math.Min(100, Health + amount);
     }
 
-    public bool TryAttack()
-    {
-        if (_attackCooldown > 0) return false;
-        _attackCooldown = 0.5f;
-        return true;
-    }
 }

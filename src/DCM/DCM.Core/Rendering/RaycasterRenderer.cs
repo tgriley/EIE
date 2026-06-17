@@ -40,6 +40,9 @@ public class RaycasterRenderer : IDisposable
     // 1×1 white pixel for rectangles (muzzle flash overlay)
     private readonly Texture2D _pixel;
 
+    // Weapon sprite (camera held by player)
+    private readonly Texture2D? _weaponTex;
+
     // Fog: beyond this perpDist everything is pitch black
     private const double FogStart = 1.5;
     private const double FogEnd = 9.0;
@@ -50,10 +53,18 @@ public class RaycasterRenderer : IDisposable
     // Shoot flash overlay
     public float MuzzleFlash { get; set; } = 0f;
 
+    // Weapon bob accumulator — advance when player is moving
+    public float WeaponBobPhase { get; set; }
+
+    // Camera raise: set true while LMB is held; internally smoothed
+    public bool WeaponRaiseTarget { get; set; }
+    private float _weaponRaise;
+
     public RaycasterRenderer(GraphicsDevice gd,
         Color[] wallTexPix, int wallTexW, int wallTexH,
         Color[] floorTexPix, int floorTexW, int floorTexH,
-        Color[] ceilTexPix, int ceilTexW, int ceilTexH)
+        Color[] ceilTexPix, int ceilTexW, int ceilTexH,
+        Texture2D? weaponTex = null)
     {
         _gd = gd;
         _sb = new SpriteBatch(gd);
@@ -73,6 +84,8 @@ public class RaycasterRenderer : IDisposable
         _pixel = new Texture2D(gd, 1, 1);
         _pixel.SetData(new[] { Color.White });
 
+        _weaponTex = weaponTex;
+
         _destRect = new Rectangle(0, 0, RW * 2, RH * 2);
     }
 
@@ -81,6 +94,9 @@ public class RaycasterRenderer : IDisposable
     public void Render(GameTime gameTime, ICamera camera, IMap map, IEnumerable<IBillboard> billboards)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        var raiseTarget = WeaponRaiseTarget ? 1f : 0f;
+        _weaponRaise += (raiseTarget - _weaponRaise) * Math.Min(1f, dt * 12f);
 
         DrawCeiling(camera);
         DrawFloor(camera);
@@ -93,6 +109,8 @@ public class RaycasterRenderer : IDisposable
             SamplerState.PointClamp, null, null);
         _sb.Draw(_fbTex, _destRect, Color.White);
         _sb.End();
+
+        DrawWeapon();
 
         if (MuzzleFlash > 0)
         {
@@ -345,75 +363,38 @@ public class RaycasterRenderer : IDisposable
             }
         }
 
-        var hb = b.HealthBar;
-        if (hb.HasValue)
-            DrawHealthBar(screenX, drawTopY, screenW, hb.Value.current, hb.Value.max, transY);
     }
 
-    private void DrawHealthBar(int screenX, int drawTopY, int screenW,
-        int current, int max, double transY)
+    // ── Weapon sprite ─────────────────────────────────────────────────────
+
+    private void DrawWeapon()
     {
-        if (current >= max) return;
-        if (screenX < 0 || screenX >= RW) return;
-        if (_zBuf[screenX] < transY) return;
+        if (_weaponTex == null) return;
 
-        const int barH = 3;
-        const int gap  = 3;
-        var barY = drawTopY - gap - barH;
-        if (barY < 0) return;
+        const int screenW = RW * 2;
+        const int screenH = RH * 2;
 
-        var barLeft = screenX - screenW / 2;
-        var frac    = (float)current / max;
-        var fillEnd = barLeft + (int)(screenW * frac);
+        // Scale so the weapon occupies ~50% of screen height
+        float scale = screenH * 0.50f / _weaponTex.Height;
+        int dw = (int)(_weaponTex.Width  * scale);
+        int dh = (int)(_weaponTex.Height * scale);
 
-        var fillCol = frac > 0.6f ? new Color(60, 200, 60)
-            : frac > 0.3f         ? new Color(220, 180, 0)
-            :                       new Color(220, 50, 40);
-        var bgCol = new Color(20, 20, 20);
+        // Bob dampens to 20% when fully raised (steady hands for a photo)
+        var bobAmp = 1f - _weaponRaise * 0.8f;
+        var bobY = (float)Math.Sin(WeaponBobPhase)       * 10f * bobAmp;
+        var bobX = (float)Math.Sin(WeaponBobPhase * 0.5) *  5f * bobAmp;
 
-        for (var row = barY; row < barY + barH; row++)
-        {
-            if (row < 0 || row >= RH) continue;
-            var colStart = Math.Max(0, barLeft);
-            var colEnd   = Math.Min(RW, barLeft + screenW);
-            for (var col = colStart; col < colEnd; col++)
-                _fb[row * RW + col] = col < fillEnd ? fillCol : bgCol;
-        }
-    }
+        // Raised: bottom of sprite aligns with bottom of screen.
+        // Lowered: sprite slides 150 px further down so hands are mostly off-screen.
+        var slideY = (int)((1f - _weaponRaise) * 150f);
 
-    // ── Shooting hit-test ─────────────────────────────────────────────────
+        int x = (screenW - dw) / 2 + (int)bobX;
+        int y = screenH - dh + slideY + (int)bobY;
 
-    public Enemy? RaycastShoot(ICamera camera, List<Enemy> enemies, double maxRange = 6.0)
-    {
-        Enemy? best = null;
-        var bestDist = maxRange;
-
-        foreach (var e in enemies)
-        {
-            if (e.IsDead) continue;
-
-            var relX = e.PosX - camera.PosX;
-            var relY = e.PosY - camera.PosY;
-
-            var invDet = 1.0 / (camera.PlaneX * camera.DirY - camera.DirX * camera.PlaneY);
-            var transX = invDet * (camera.DirY * relX - camera.DirX * relY);
-            var transY = invDet * (-camera.PlaneY * relX + camera.PlaneX * relY);
-
-            if (transY <= 0.1 || transY > maxRange) continue;
-
-            var screenX = (int)(RW / 2 * (1.0 + transX / transY));
-            var screenH = Math.Abs((int)(RH / transY));
-            var halfW = screenH / 4;
-
-            if (Math.Abs(screenX - RW / 2) < halfW && transY < bestDist &&
-                _zBuf[RW / 2] >= transY)
-            {
-                bestDist = transY;
-                best = e;
-            }
-        }
-
-        return best;
+        _sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+            SamplerState.PointClamp, null, null);
+        _sb.Draw(_weaponTex, new Rectangle(x, y, dw, dh), Color.White);
+        _sb.End();
     }
 
     public void Dispose()

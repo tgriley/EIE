@@ -10,6 +10,7 @@ public enum EnemyState
     Patrol,
     Chase,
     Attack,
+    Flee,
     Dead
 }
 
@@ -57,7 +58,7 @@ public class Enemy : IBillboard
         _patrolDirY = Math.Sin(a);
     }
 
-    public void Update(GameTime gameTime, IDamageable target, IMap map)
+    public void Update(GameTime gameTime, IDamageable target, ICamera camera, IMap map, bool cameraRaised = false)
     {
         if (IsDead) return;
 
@@ -69,17 +70,21 @@ public class Enemy : IBillboard
         var dx = target.PosX - PosX;
         var dy = target.PosY - PosY;
         var dist = Math.Sqrt(dx * dx + dy * dy);
+        var scared = cameraRaised && dist < ChaseRange &&
+                     IsLookedAt(camera) && HasLineOfSight(target, map);
 
         switch (State)
         {
             case EnemyState.Patrol:
                 DoPatrol(dt, map);
                 if (dist < ChaseRange && HasLineOfSight(target, map))
-                    State = EnemyState.Chase;
+                    State = scared ? EnemyState.Flee : EnemyState.Chase;
                 break;
 
             case EnemyState.Chase:
-                if (dist < AttackRange)
+                if (scared)
+                    State = EnemyState.Flee;
+                else if (dist < AttackRange)
                     State = EnemyState.Attack;
                 else if (dist > ChaseRange * 1.5)
                     State = EnemyState.Patrol;
@@ -88,19 +93,26 @@ public class Enemy : IBillboard
                 break;
 
             case EnemyState.Attack:
-                if (dist > AttackRange * 1.2)
-                {
+                if (scared)
+                    State = EnemyState.Flee;
+                else if (dist > AttackRange * 1.2)
                     State = EnemyState.Chase;
-                }
                 else if (_attackCooldown <= 0)
                 {
                     target.TakeDamage(15);
                     _attackCooldown = 1.2f;
                 }
                 break;
+
+            case EnemyState.Flee:
+                if (!scared)
+                    State = EnemyState.Patrol;
+                else if (dist > 0.01)
+                    MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map);
+                break;
         }
 
-        var fps = State == EnemyState.Chase ? ChaseFps : PatrolFps;
+        var fps = (State == EnemyState.Chase || State == EnemyState.Flee) ? ChaseFps : PatrolFps;
         _animTimer += dt;
         if (_animTimer >= 1f / fps)
         {
@@ -171,6 +183,16 @@ public class Enemy : IBillboard
 
         if (!map.IsWall((int)(nx + Math.Sign(dx) * margin), (int)PosY)) PosX = nx;
         if (!map.IsWall((int)PosX, (int)(ny + Math.Sign(dy) * margin))) PosY = ny;
+    }
+
+    private bool IsLookedAt(ICamera camera)
+    {
+        var dx = PosX - camera.PosX;
+        var dy = PosY - camera.PosY;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist < 0.001) return true;
+        var dot = dx / dist * camera.DirX + dy / dist * camera.DirY;
+        return dot > 0.85;
     }
 
     private bool HasLineOfSight(IDamageable target, IMap map)

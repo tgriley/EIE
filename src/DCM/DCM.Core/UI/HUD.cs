@@ -130,7 +130,6 @@ public class HUD : IDisposable
         {
             DrawMinimap(player, enemies, map);
             DrawHealthBar(player);
-            DrawMonsterCounter(enemies);
             DrawObjectiveText();
             DrawTimer(elapsed);
             DrawCrosshair();
@@ -195,29 +194,6 @@ public class HUD : IDisposable
 
         _painter.DrawTextShadow(player.Health.ToString(),
             new Vector2(panelX + barW + 8, panelY), ColText, 0.85f);
-    }
-
-    private void DrawMonsterCounter(List<Enemy> enemies)
-    {
-        var alive = 0;
-        foreach (var e in enemies)
-            if (!e.IsDead) alive++;
-
-        int panelX = SW - 172, panelY = SH - 60, barW = 160, barH = 18;
-
-        _painter.DrawRect(panelX - 4, panelY - 26, barW + 8, barH + 32, ColPanelBg);
-        _painter.DrawTextShadow("MONSTER", new Vector2(panelX, panelY - 20), ColText, 0.85f);
-
-        var total = enemies.Count;
-        if (total > 0)
-        {
-            var dotW = Math.Max(4, (barW - (total - 1) * 2) / total);
-            for (var i = 0; i < total; i++)
-                _painter.DrawRect(panelX + i * (dotW + 2), panelY, dotW, barH,
-                    enemies[i].IsDead ? ColBarBg : ColEnemy);
-        }
-
-        _painter.DrawTextShadow($"{alive}/{total}", new Vector2(panelX - 36, panelY), ColText, 0.85f);
     }
 
     private void DrawCrosshair()

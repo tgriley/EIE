@@ -24,10 +24,14 @@ public class RaycasterRenderer : IDisposable
     // Z-buffer (perpendicular wall distance per column)
     private readonly double[] _zBuf = new double[RW];
 
-    // Wall / floor / ceiling textures (pixel data from content pipeline)
+    // Wall / floor / ceiling / door textures (pixel data from content pipeline)
     private readonly Color[] _wallTexPix;
     private readonly int _wallTexW;
     private readonly int _wallTexH;
+
+    private readonly Color[] _doorTexPix;
+    private readonly int _doorTexW;
+    private readonly int _doorTexH;
 
     private readonly Color[] _floorTexPix;
     private readonly int _floorTexW;
@@ -62,6 +66,7 @@ public class RaycasterRenderer : IDisposable
 
     public RaycasterRenderer(GraphicsDevice gd,
         Color[] wallTexPix, int wallTexW, int wallTexH,
+        Color[] doorTexPix, int doorTexW, int doorTexH,
         Color[] floorTexPix, int floorTexW, int floorTexH,
         Color[] ceilTexPix, int ceilTexW, int ceilTexH,
         Texture2D? weaponTex = null)
@@ -72,6 +77,9 @@ public class RaycasterRenderer : IDisposable
         _wallTexPix = wallTexPix;
         _wallTexW = wallTexW;
         _wallTexH = wallTexH;
+        _doorTexPix = doorTexPix;
+        _doorTexW = doorTexW;
+        _doorTexH = doorTexH;
         _floorTexPix = floorTexPix;
         _floorTexW = floorTexW;
         _floorTexH = floorTexH;
@@ -215,9 +223,6 @@ public class RaycasterRenderer : IDisposable
 
     private void CastWalls(ICamera camera, IMap map)
     {
-        var texSzW = _wallTexW;
-        var texSzH = _wallTexH;
-
         for (var col = 0; col < RW; col++)
         {
             var camX = 2.0 * col / RW - 1.0;
@@ -260,6 +265,11 @@ public class RaycasterRenderer : IDisposable
             var drawTop = Math.Max(0, RH / 2 - wallH / 2);
             var drawBot = Math.Min(RH - 1, RH / 2 + wallH / 2);
 
+            var isDoor = hitTile == Tile.Exit;
+            var texPix = isDoor ? _doorTexPix : _wallTexPix;
+            var texSzW = isDoor ? _doorTexW : _wallTexW;
+            var texSzH = isDoor ? _doorTexH : _wallTexH;
+
             var wallX = side == 0
                 ? camera.PosY + perpDist * rayDY
                 : camera.PosX + perpDist * rayDX;
@@ -282,7 +292,7 @@ public class RaycasterRenderer : IDisposable
             for (var y = drawTop; y <= drawBot; y++)
             {
                 var ty = Math.Clamp((int)texY, 0, texSzH - 1);
-                var raw = _wallTexPix[ty * texSzW + texX];
+                var raw = texPix[ty * texSzW + texX];
 
                 var r = (byte)Math.Clamp(raw.R * bright + warmth * 200, 0, 255);
                 var g = (byte)Math.Clamp(raw.G * bright + warmth * 120, 0, 255);

@@ -26,7 +26,7 @@ public class PlayScreen : IGameScreen
     private readonly List<Enemy> _enemies;
     private readonly List<IPickup> _pickups;
     private readonly Func<IGameScreen> _toLevelSelect;
-    private readonly Func<IGameScreen>? _toNextLevel;
+    private readonly Func<int, IGameScreen>? _toNextLevel;
     private readonly PlaySounds _sounds;
     private readonly bool _hasNextLevel;
     private readonly int _levelIndex;
@@ -49,8 +49,8 @@ public class PlayScreen : IGameScreen
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
-        int levelIndex, Func<IGameScreen> toLevelSelect, Func<IGameScreen>? toNextLevel,
-        SoundEffect clickSound, PlaySounds sounds)
+        int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
+        SoundEffect clickSound, PlaySounds sounds, int startHealth = 100)
     {
         _levelIndex    = levelIndex;
         _map           = Map.GetLevel(levelIndex);
@@ -61,15 +61,21 @@ public class PlayScreen : IGameScreen
 
         const int sheetCount = 5;
         var sheets = new EnemySpriteSheet[sheetCount];
+        var hideSheets = new EnemySpriteSheet[sheetCount];
         for (var i = 0; i < sheetCount; i++)
         {
             var tex = content.Load<Texture2D>($"SpritesheetEnemy{i}");
             var pix = new Color[tex.Width * tex.Height];
             tex.GetData(pix);
             sheets[i] = new EnemySpriteSheet(pix, tex.Width, tex.Height, 6);
+
+            var hideTex = content.Load<Texture2D>($"SpritesheetEnemy{i}_hide");
+            var hidePix = new Color[hideTex.Width * hideTex.Height];
+            hideTex.GetData(hidePix);
+            hideSheets[i] = new EnemySpriteSheet(hidePix, hideTex.Width, hideTex.Height, 6);
         }
 
-        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle);
+        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, startHealth);
         _player.OnDamaged = () => _sounds.PlayerOuch.Play();
         _player.OnDied    = () => _sounds.PlayerDeath.Play();
 
@@ -80,22 +86,28 @@ public class PlayScreen : IGameScreen
         foreach (var spawn in _map.EnemySpawns)
         {
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
-            var enemy = new Enemy(spawn.x, spawn.y, sheets[sheetIndex % sheetCount]);
+            var enemy = new Enemy(spawn.x, spawn.y, sheets[sheetIndex % sheetCount], hideSheets[sheetIndex % sheetCount]);
             enemy.OnHurt = () => _sounds.EnemyOuch.Play();
             enemy.OnDied = () => _sounds.EnemyDeath.Play();
             _enemies.Add(enemy);
             sheetIndex++;
         }
 
-        var wallTex = content.Load<Texture2D>("TextureWall0");
+        var texVariant = levelIndex == 1 ? "1" : "0";
+
+        var wallTex = content.Load<Texture2D>($"TextureWall{texVariant}");
         var wallPix = new Color[wallTex.Width * wallTex.Height];
         wallTex.GetData(wallPix);
 
-        var floorTex = content.Load<Texture2D>("TextureFloor0");
+        var doorTex = content.Load<Texture2D>("TextureDoor0");
+        var doorPix = new Color[doorTex.Width * doorTex.Height];
+        doorTex.GetData(doorPix);
+
+        var floorTex = content.Load<Texture2D>($"TextureFloor{texVariant}");
         var floorPix = new Color[floorTex.Width * floorTex.Height];
         floorTex.GetData(floorPix);
 
-        var ceilTex = content.Load<Texture2D>("TextureCeiling0");
+        var ceilTex = content.Load<Texture2D>($"TextureCeiling{texVariant}");
         var ceilPix = new Color[ceilTex.Width * ceilTex.Height];
         ceilTex.GetData(ceilPix);
 
@@ -103,6 +115,7 @@ public class PlayScreen : IGameScreen
 
         _renderer = new RaycasterRenderer(gd,
             wallPix, wallTex.Width, wallTex.Height,
+            doorPix, doorTex.Width, doorTex.Height,
             floorPix, floorTex.Width, floorTex.Height,
             ceilPix, ceilTex.Width, ceilTex.Height,
             weaponTex);
@@ -134,7 +147,7 @@ public class PlayScreen : IGameScreen
         else if (_gameOver || _won)
         {
             var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _hasNextLevel);
-            if (action == HudAction.NextLevel) return _toNextLevel!();
+            if (action == HudAction.NextLevel) return _toNextLevel!(_player.Health);
             if (action == HudAction.MainMenu)  return _toLevelSelect();
         }
         else

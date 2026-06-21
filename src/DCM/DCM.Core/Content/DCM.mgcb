@@ -36,6 +36,22 @@
 /build:SpritesheetEnemy3.png
 /build:SpritesheetEnemy4.png
 
+#begin SpritesheetEnemy0_hide.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:SpritesheetEnemy0_hide.png
+/build:SpritesheetEnemy1_hide.png
+/build:SpritesheetEnemy2_hide.png
+/build:SpritesheetEnemy3_hide.png
+/build:SpritesheetEnemy4_hide.png
+
 #begin TextureCeiling0.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -60,6 +76,18 @@
 /processorParam:TextureFormat=Color
 /build:TextureWall0.png
 
+#begin TextureDoor0.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:TextureDoor0.png
+
 #begin TextureFloor0.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -71,6 +99,42 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:TextureFloor0.png
+
+#begin TextureWall1.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:TextureWall1.png
+
+#begin TextureFloor1.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:TextureFloor1.png
+
+#begin TextureCeiling1.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:TextureCeiling1.png
 
 #begin Camera.png
 /importer:TextureImporter

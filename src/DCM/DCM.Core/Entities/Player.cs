@@ -29,10 +29,11 @@ public class Player : ICamera, IDamageable
     private const double TurnSpeed = 2.0;
     private const double MouseSens = 0.0015;
 
-    public Player(double posX, double posY, double angle)
+    public Player(double posX, double posY, double angle, int startHealth = 100)
     {
         PosX = posX;
         PosY = posY;
+        Health = Math.Clamp(startHealth, 1, 100);
         SetAngle(angle);
     }
 

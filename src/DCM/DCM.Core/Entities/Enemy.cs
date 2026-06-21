@@ -27,6 +27,9 @@ public class Enemy : IBillboard
     public bool IsHurt => _hurtTimer > 0;
     public double DistSq { get; set; }
     public EnemySpriteSheet SpriteSheet { get; }
+    public EnemySpriteSheet HideSpriteSheet { get; }
+
+    private EnemySpriteSheet ActiveSheet => State == EnemyState.Flee ? HideSpriteSheet : SpriteSheet;
 
     public Action? OnHurt { get; set; }
     public Action? OnDied { get; set; }
@@ -48,11 +51,12 @@ public class Enemy : IBillboard
 
     private static readonly Random _rng = new();
 
-    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet)
+    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet)
     {
         PosX = tileX + 0.5;
         PosY = tileY + 0.5;
         SpriteSheet = spriteSheet;
+        HideSpriteSheet = hideSpriteSheet;
         var a = _rng.NextDouble() * Math.PI * 2;
         _patrolDirX = Math.Cos(a);
         _patrolDirY = Math.Sin(a);
@@ -141,11 +145,11 @@ public class Enemy : IBillboard
 
     // ── IBillboard ───────────────────────────────────────────────────────────
 
-    Color[]         IBillboard.Pixels        => SpriteSheet.Pixels;
-    int             IBillboard.TexWidth      => SpriteSheet.FrameWidth;
-    int             IBillboard.TexHeight     => SpriteSheet.Height;
-    int             IBillboard.TexStride     => SpriteSheet.Width;
-    int             IBillboard.PixelOffsetX  => AnimFrame * SpriteSheet.FrameWidth;
+    Color[]         IBillboard.Pixels        => ActiveSheet.Pixels;
+    int             IBillboard.TexWidth      => ActiveSheet.FrameWidth;
+    int             IBillboard.TexHeight     => ActiveSheet.Height;
+    int             IBillboard.TexStride     => ActiveSheet.Width;
+    int             IBillboard.PixelOffsetX  => AnimFrame * ActiveSheet.FrameWidth;
     bool            IBillboard.IsVisible     => !IsDead;
     bool            IBillboard.ApplyHurtTint => IsHurt;
     int             IBillboard.HeightDivisor => 1;

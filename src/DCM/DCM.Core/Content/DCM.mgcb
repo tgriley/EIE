@@ -147,3 +147,33 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:Camera.png
+
+#begin Levels/level01.json
+/copy:Levels/level01.json
+
+#begin Levels/level02.json
+/copy:Levels/level02.json
+
+#begin Levels/level03.json
+/copy:Levels/level03.json
+
+#begin Levels/level04.json
+/copy:Levels/level04.json
+
+#begin Levels/level05.json
+/copy:Levels/level05.json
+
+#begin Levels/level06.json
+/copy:Levels/level06.json
+
+#begin Levels/level07.json
+/copy:Levels/level07.json
+
+#begin Levels/level08.json
+/copy:Levels/level08.json
+
+#begin Levels/level09.json
+/copy:Levels/level09.json
+
+#begin Levels/level10.json
+/copy:Levels/level10.json

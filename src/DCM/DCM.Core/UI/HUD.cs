@@ -47,6 +47,8 @@ public class HUD : IDisposable
     private static readonly Color ColHpBar      = new(180, 20, 20);
     private static readonly Color ColHpBarFull  = new(220, 50, 40);
     private static readonly Color ColBarBg      = new(30, 25, 22);
+    private static readonly Color ColCamReady   = new(80, 200, 220);
+    private static readonly Color ColCamCharge  = new(50, 110, 150);
     private static readonly Color ColPanelBg    = new(0, 0, 0, 160);
     private static readonly Color ColText       = new(235, 225, 200);
     private static readonly Color ColTextDim    = new(160, 150, 130);
@@ -108,7 +110,8 @@ public class HUD : IDisposable
 
     public void Draw(GameTime gameTime, Player player, List<Enemy> enemies,
         IMap map, bool gameOver, bool won, bool paused = false, bool hasNextLevel = false,
-        float elapsed = 0f, float bestTime = float.MaxValue, bool isNewBest = false)
+        float elapsed = 0f, float bestTime = float.MaxValue, bool isNewBest = false,
+        float cameraCooldown = 0f, float cameraMaxCooldown = 5f)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (!paused) _controlsTimer -= dt;
@@ -130,6 +133,7 @@ public class HUD : IDisposable
         {
             DrawMinimap(player, enemies, map);
             DrawHealthBar(player);
+            DrawCameraIndicator(cameraCooldown, cameraMaxCooldown);
             DrawObjectiveText();
             DrawTimer(elapsed);
             DrawCrosshair();
@@ -194,6 +198,24 @@ public class HUD : IDisposable
 
         _painter.DrawTextShadow(player.Health.ToString(),
             new Vector2(panelX + barW + 8, panelY), ColText, 0.85f);
+    }
+
+    private void DrawCameraIndicator(float cooldown, float maxCooldown)
+    {
+        const int barW = 160, barH = 18;
+        int panelX = SW - barW - 12, panelY = SH - 60;
+
+        _painter.DrawRect(panelX - 4, panelY - 26, barW + 8, barH + 32, ColPanelBg);
+        _painter.DrawTextShadow("CAMERA", new Vector2(panelX, panelY - 20), ColText, 0.85f);
+        _painter.DrawRect(panelX, panelY, barW, barH, ColBarBg);
+
+        var chargeFrac = maxCooldown > 0 ? 1f - cooldown / maxCooldown : 1f;
+        var fillW = (int)(barW * chargeFrac);
+        if (fillW > 0)
+            _painter.DrawRect(panelX, panelY, fillW, barH, chargeFrac >= 1f ? ColCamReady : ColCamCharge);
+
+        var label = chargeFrac >= 1f ? "READY" : $"{cooldown:F1}s";
+        _painter.DrawTextShadow(label, new Vector2(panelX + barW + 8, panelY), ColText, 0.85f);
     }
 
     private void DrawCrosshair()

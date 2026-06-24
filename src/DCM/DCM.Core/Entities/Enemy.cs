@@ -11,6 +11,7 @@ public enum EnemyState
     Chase,
     Attack,
     Flee,
+    Dazed,
     Dead
 }
 
@@ -28,7 +29,7 @@ public class Enemy : IBillboard
     public EnemySpriteSheet SpriteSheet { get; }
     public EnemySpriteSheet HideSpriteSheet { get; }
 
-    private EnemySpriteSheet ActiveSheet => State == EnemyState.Flee ? HideSpriteSheet : SpriteSheet;
+    private EnemySpriteSheet ActiveSheet => (State == EnemyState.Flee || State == EnemyState.Dazed) ? HideSpriteSheet : SpriteSheet;
 
     public Action? OnHurt { get; set; }
     public Action? OnDied { get; set; }
@@ -38,6 +39,7 @@ public class Enemy : IBillboard
 
     private float _attackCooldown = 0f;
     private float _hurtTimer = 0f;
+    private float _dazeTimer = 0f;
     private float _animTimer = 0f;
     private float _patrolTimer = 0f;
     private double _patrolDirX = 1;
@@ -47,6 +49,7 @@ public class Enemy : IBillboard
     private const double AttackRange = 1.5;
     private const double MoveSpeed = 1.5;
     private const double PatrolSpeed = 0.8;
+    private const float DazeDuration = 5f;
 
     private static readonly Random _rng = new();
 
@@ -61,7 +64,7 @@ public class Enemy : IBillboard
         _patrolDirY = Math.Sin(a);
     }
 
-    public void Update(GameTime gameTime, IDamageable target, ICamera camera, IMap map, bool cameraRaised = false)
+    public void Update(GameTime gameTime, IDamageable target, ICamera camera, IMap map, bool cameraRaised = false, bool flashFired = false)
     {
         if (IsDead) return;
 
@@ -69,37 +72,39 @@ public class Enemy : IBillboard
 
         if (_attackCooldown > 0) _attackCooldown -= dt;
         if (_hurtTimer > 0) _hurtTimer -= dt;
+        if (_dazeTimer > 0) _dazeTimer -= dt;
 
         var dx = target.PosX - PosX;
         var dy = target.PosY - PosY;
         var dist = Math.Sqrt(dx * dx + dy * dy);
-        var scared = cameraRaised && dist < ChaseRange &&
-                     IsLookedAt(camera) && HasLineOfSight(target, map);
+        var inSightRange = dist < ChaseRange && IsLookedAt(camera) && HasLineOfSight(target, map);
+        var scared = inSightRange && cameraRaised;
+        var dazed  = inSightRange && flashFired;
 
         switch (State)
         {
             case EnemyState.Patrol:
                 DoPatrol(dt, map);
                 if (dist < ChaseRange && HasLineOfSight(target, map))
-                    State = scared ? EnemyState.Flee : EnemyState.Chase;
+                {
+                    if (dazed)       { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                    else if (scared) { State = EnemyState.Flee; }
+                    else               State = EnemyState.Chase;
+                }
                 break;
 
             case EnemyState.Chase:
-                if (scared)
-                    State = EnemyState.Flee;
-                else if (dist < AttackRange)
-                    State = EnemyState.Attack;
-                else if (dist > ChaseRange * 1.5)
-                    State = EnemyState.Patrol;
-                else
-                    MoveToward(dx / dist, dy / dist, MoveSpeed * dt, map);
+                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                else if (scared)                  { State = EnemyState.Flee; }
+                else if (dist < AttackRange)        State = EnemyState.Attack;
+                else if (dist > ChaseRange * 1.5)   State = EnemyState.Patrol;
+                else MoveToward(dx / dist, dy / dist, MoveSpeed * dt, map);
                 break;
 
             case EnemyState.Attack:
-                if (scared)
-                    State = EnemyState.Flee;
-                else if (dist > AttackRange * 1.2)
-                    State = EnemyState.Chase;
+                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                else if (scared)                  { State = EnemyState.Flee; }
+                else if (dist > AttackRange * 1.2)  State = EnemyState.Chase;
                 else if (_attackCooldown <= 0)
                 {
                     target.TakeDamage(15);
@@ -108,19 +113,26 @@ public class Enemy : IBillboard
                 break;
 
             case EnemyState.Flee:
-                if (!scared)
-                    State = EnemyState.Patrol;
-                else if (dist > 0.01)
-                    MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map);
+                if (dazed)        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                else if (!scared)   State = dist < ChaseRange && HasLineOfSight(target, map) ? EnemyState.Chase : EnemyState.Patrol;
+                else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map);
+                break;
+
+            case EnemyState.Dazed:
+                if (dazed) { _dazeTimer = DazeDuration; AnimFrame = 0; }
+                else if (_dazeTimer <= 0) State = EnemyState.Patrol;
                 break;
         }
 
-        var fps = (State == EnemyState.Chase || State == EnemyState.Flee) ? ChaseFps : PatrolFps;
-        _animTimer += dt;
-        if (_animTimer >= 1f / fps)
+        if (State != EnemyState.Dazed)
         {
-            _animTimer -= 1f / fps;
-            AnimFrame = (AnimFrame + 1) % SpriteSheet.FrameCount;
+            var fps = (State == EnemyState.Chase || State == EnemyState.Flee) ? ChaseFps : PatrolFps;
+            _animTimer += dt;
+            if (_animTimer >= 1f / fps)
+            {
+                _animTimer -= 1f / fps;
+                AnimFrame = (AnimFrame + 1) % SpriteSheet.FrameCount;
+            }
         }
     }
 

@@ -61,7 +61,8 @@ public class Player : ICamera, IDamageable, IHealable
         if (HurtTimer > 0) HurtTimer -= dt;
         if (_damageCooldown > 0) _damageCooldown -= dt;
 
-        var speed = (input.Running ? RunSpeed : MoveSpeed) * dt;
+        var baseSpeed = input.Running ? RunSpeed : MoveSpeed;
+        var speed = baseSpeed * (input.CameraRaising ? 0.5 : 1.0) * dt;
         const double margin = 0.25;
 
         double newX = PosX, newY = PosY;

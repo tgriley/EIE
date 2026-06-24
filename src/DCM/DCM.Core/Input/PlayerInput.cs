@@ -9,10 +9,11 @@ public readonly struct PlayerInput
     public readonly bool TurnLeft;
     public readonly bool TurnRight;
     public readonly bool Running;
+    public readonly bool CameraRaising;
     public readonly int MouseDeltaX;
 
     public PlayerInput(bool moveForward, bool moveBack, bool strafeLeft, bool strafeRight,
-        bool turnLeft, bool turnRight, bool running, int mouseDeltaX)
+        bool turnLeft, bool turnRight, bool running, int mouseDeltaX, bool cameraRaising = false)
     {
         MoveForward = moveForward;
         MoveBack = moveBack;
@@ -21,6 +22,7 @@ public readonly struct PlayerInput
         TurnLeft = turnLeft;
         TurnRight = turnRight;
         Running = running;
+        CameraRaising = cameraRaising;
         MouseDeltaX = mouseDeltaX;
     }
 }

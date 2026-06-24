@@ -125,7 +125,7 @@ public class RaycasterRenderer : IDisposable
             _sb.Begin();
             var alpha = (byte)(MuzzleFlash * 180);
             _sb.Draw(_pixel, new Rectangle(0, 0, RW * 2, RH * 2),
-                new Color(255, 200, 50, (int)alpha));
+                new Color(255, 255, 255, (int)alpha));
             _sb.End();
             MuzzleFlash = Math.Max(0, MuzzleFlash - dt * 6f);
         }

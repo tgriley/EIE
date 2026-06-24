@@ -38,6 +38,9 @@ public class PlayScreen : IGameScreen
     private bool _prevM;
     private bool _firstInputFrame = true;
     private bool _cameraRaised;
+    private bool _cameraFired;
+    private float _cameraCooldown;
+    private float _cameraRaiseTimer;
     private float _elapsed;
     private bool _isNewBest;
     private GamePadState _prevGamePad;
@@ -45,6 +48,8 @@ public class PlayScreen : IGameScreen
     private const float StickDeadZone    = 0.20f;
     private const float TriggerThreshold = 0.50f;
     private const int   ControllerLookSens = 50;
+    private const float CameraUseDuration = 5f;
+    private const float CameraRaiseTime   = 0.4f;
 
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
@@ -182,17 +187,40 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.Left),
                 kb.IsKeyDown(Keys.Right),
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > TriggerThreshold,
-                mouseDeltaX));
+                mouseDeltaX,
+                _cameraRaised));
 
             if (moving)
                 _renderer.WeaponBobPhase += dt * 7f;
 
-            _cameraRaised = mouse.LeftButton == ButtonState.Pressed ||
-                            gp.Triggers.Right > TriggerThreshold;
+            var raiseHeld   = mouse.RightButton == ButtonState.Pressed ||
+                              gp.Triggers.Right > TriggerThreshold;
+            var shootJustPressed = mouse.LeftButton    == ButtonState.Pressed &&
+                                   prevMouse.LeftButton != ButtonState.Pressed ||
+                                   gp.Buttons.RightShoulder    == ButtonState.Pressed &&
+                                   _prevGamePad.Buttons.RightShoulder != ButtonState.Pressed;
+
+            if (_cameraCooldown > 0) _cameraCooldown -= dt;
+            if (!raiseHeld) { _cameraFired = false; _cameraRaiseTimer = 0f; }
+            _cameraRaised = raiseHeld && _cameraCooldown <= 0 && !_cameraFired;
             _renderer.WeaponRaiseTarget = _cameraRaised;
 
+            if (_cameraRaised && _cameraRaiseTimer < CameraRaiseTime)
+                _cameraRaiseTimer += dt;
+
+            var cameraReady    = _cameraRaised && _cameraRaiseTimer >= CameraRaiseTime;
+            var flashJustFired = false;
+            if (cameraReady && shootJustPressed)
+            {
+                _renderer.MuzzleFlash = 1f;
+                _cameraCooldown = CameraUseDuration;
+                _cameraFired = true;
+                _cameraRaiseTimer = 0f;
+                flashJustFired = true;
+            }
+
             foreach (var p in _pickups) p.TryCollect(_player);
-            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, _cameraRaised);
+            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, cameraReady, flashJustFired);
 
             if (_player.IsDead) _gameOver = true;
 
@@ -215,7 +243,8 @@ public class PlayScreen : IGameScreen
     {
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
-            _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest);
+            _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest,
+            _cameraCooldown, CameraUseDuration);
     }
 
     public void Dispose()

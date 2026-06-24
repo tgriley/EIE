@@ -79,21 +79,20 @@ public class PlayScreen : IGameScreen
         _player.OnDamaged = () => _sounds.PlayerOuch.Play();
         _player.OnDied    = () => _sounds.PlayerDeath.Play();
 
-        _pickups = new List<IPickup> { new HealthPickup(_map.PickupSpawn.x, _map.PickupSpawn.y) };
+        _pickups = new List<IPickup> { };
 
         _enemies = new List<Enemy>();
-        var sheetIndex = 0;
         foreach (var spawn in _map.EnemySpawns)
         {
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
-            var enemy = new Enemy(spawn.x, spawn.y, sheets[sheetIndex % sheetCount], hideSheets[sheetIndex % sheetCount]);
+            var si = spawn.type % sheetCount;
+            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si]);
             enemy.OnHurt = () => _sounds.EnemyOuch.Play();
             enemy.OnDied = () => _sounds.EnemyDeath.Play();
             _enemies.Add(enemy);
-            sheetIndex++;
         }
 
-        var texVariant = levelIndex == 1 ? "1" : "0";
+        var texVariant = _map.TextureVariant;
 
         var wallTex = content.Load<Texture2D>($"TextureWall{texVariant}");
         var wallPix = new Color[wallTex.Width * wallTex.Height];

@@ -5,7 +5,7 @@ using System;
 
 namespace DCM.Core.Entities;
 
-public class Player : ICamera, IDamageable
+public class Player : ICamera, IDamageable, IHealable
 {
     public double PosX { get; set; }
     public double PosY { get; set; }

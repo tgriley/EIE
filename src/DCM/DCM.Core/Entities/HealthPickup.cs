@@ -7,7 +7,6 @@ public class HealthPickup : IPickup
     public double PosX { get; }
     public double PosY { get; }
     public bool IsCollected { get; private set; }
-    public double DistSq { get; set; }
 
     public const int HealAmount = 50;
     private const double CollectRadiusSq = 0.6 * 0.6;
@@ -20,14 +19,14 @@ public class HealthPickup : IPickup
         PosY = tileY + 0.5;
     }
 
-    public bool TryCollect(Player player)
+    public bool TryCollect(IHealable target)
     {
         if (IsCollected) return false;
-        var dx = player.PosX - PosX;
-        var dy = player.PosY - PosY;
+        var dx = target.PosX - PosX;
+        var dy = target.PosY - PosY;
         if (dx * dx + dy * dy >= CollectRadiusSq) return false;
         IsCollected = true;
-        player.Heal(HealAmount);
+        target.Heal(HealAmount);
         return true;
     }
 

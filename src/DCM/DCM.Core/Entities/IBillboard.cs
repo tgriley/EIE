@@ -6,7 +6,6 @@ public interface IBillboard
 {
     double PosX    { get; }
     double PosY    { get; }
-    double DistSq  { get; set; }
     bool   IsVisible { get; }
 
     Color[] Pixels       { get; }

@@ -25,7 +25,6 @@ public class Enemy : IBillboard
     public EnemyState State { get; private set; } = EnemyState.Patrol;
     public int AnimFrame { get; private set; } = 0;
     public bool IsHurt => _hurtTimer > 0;
-    public double DistSq { get; set; }
     public EnemySpriteSheet SpriteSheet { get; }
     public EnemySpriteSheet HideSpriteSheet { get; }
 

@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.IO;
 using System.Linq;
@@ -28,11 +29,14 @@ public class Map : IMap
     public float StartY { get; }
     public float StartAngle { get; }
 
-    // Enemy spawn positions
-    public readonly (int x, int y)[] EnemySpawns;
+    // Enemy spawn positions with enemy type index
+    public readonly (int x, int y, int type)[] EnemySpawns;
 
     // Torch positions (tile coords where wall has a torch)
     public readonly (int x, int y)[] TorchPositions;
+
+    // Texture set suffix used by PlayScreen to load wall/floor/ceiling assets
+    public readonly int TextureVariant;
 
     // Health pickup spawn (one per level, chosen randomly at startup)
     public readonly (int x, int y) PickupSpawn;
@@ -65,8 +69,9 @@ public class Map : IMap
         return new Map(
             tiles,
             data.StartX, data.StartY, data.StartAngle,
-            data.EnemySpawns.Select(p => (p[0], p[1])).ToArray(),
-            data.TorchPositions.Select(p => (p[0], p[1])).ToArray());
+            data.EnemySpawns.Select(p => (p[0], p[1], p.Length > 2 ? p[2] : 0)).ToArray(),
+            data.TorchPositions.Select(p => (p[0], p[1])).ToArray(),
+            data.TextureVariant ?? 0);
     }
 
     private sealed class MapData
@@ -77,10 +82,12 @@ public class Map : IMap
         public int[][] Tiles { get; set; } = [];
         public int[][] EnemySpawns { get; set; } = [];
         public int[][] TorchPositions { get; set; } = [];
+        public int? TextureVariant { get; set; }
     }
 
     public Map(int[,] tiles, float startX, float startY, float startAngle,
-        (int x, int y)[] enemySpawns, (int x, int y)[] torchPositions)
+        (int x, int y, int type)[] enemySpawns, (int x, int y)[] torchPositions,
+        int textureVariant = 0)
     {
         _tiles = tiles;
         Height = tiles.GetLength(0);
@@ -90,6 +97,7 @@ public class Map : IMap
         StartAngle = startAngle;
         EnemySpawns = enemySpawns;
         TorchPositions = torchPositions;
+        TextureVariant = textureVariant;
         PickupSpawn = ChoosePickupSpawn();
     }
 

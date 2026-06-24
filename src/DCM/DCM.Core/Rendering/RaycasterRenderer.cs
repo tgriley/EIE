@@ -308,16 +308,16 @@ public class RaycasterRenderer : IDisposable
 
     private void RenderBillboards(ICamera camera, IEnumerable<IBillboard> billboards)
     {
-        var list = new List<IBillboard>();
+        var list = new List<(IBillboard b, double distSq)>();
         foreach (var b in billboards)
         {
             if (!b.IsVisible) continue;
-            b.DistSq = (b.PosX - camera.PosX) * (b.PosX - camera.PosX) +
-                       (b.PosY - camera.PosY) * (b.PosY - camera.PosY);
-            list.Add(b);
+            var dx = b.PosX - camera.PosX;
+            var dy = b.PosY - camera.PosY;
+            list.Add((b, dx * dx + dy * dy));
         }
-        list.Sort((a, b) => b.DistSq.CompareTo(a.DistSq));
-        foreach (var b in list)
+        list.Sort((a, b) => b.distSq.CompareTo(a.distSq));
+        foreach (var (b, _) in list)
             DrawBillboard(camera, b);
     }
 

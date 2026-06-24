@@ -28,6 +28,7 @@ public class Enemy : IBillboard
     public bool IsHurt => _hurtTimer > 0;
     public EnemySpriteSheet SpriteSheet { get; }
     public EnemySpriteSheet HideSpriteSheet { get; }
+    public bool CameraImmune { get; }
 
     private EnemySpriteSheet ActiveSheet => (State == EnemyState.Flee || State == EnemyState.Dazed) ? HideSpriteSheet : SpriteSheet;
 
@@ -53,12 +54,13 @@ public class Enemy : IBillboard
 
     private static readonly Random _rng = new();
 
-    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet)
+    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet, bool cameraImmune = false)
     {
         PosX = tileX + 0.5;
         PosY = tileY + 0.5;
         SpriteSheet = spriteSheet;
         HideSpriteSheet = hideSpriteSheet;
+        CameraImmune = cameraImmune;
         var a = _rng.NextDouble() * Math.PI * 2;
         _patrolDirX = Math.Cos(a);
         _patrolDirY = Math.Sin(a);
@@ -77,7 +79,7 @@ public class Enemy : IBillboard
         var dx = target.PosX - PosX;
         var dy = target.PosY - PosY;
         var dist = Math.Sqrt(dx * dx + dy * dy);
-        var inSightRange = dist < ChaseRange && IsLookedAt(camera) && HasLineOfSight(target, map);
+        var inSightRange = !CameraImmune && dist < ChaseRange && IsLookedAt(camera) && HasLineOfSight(target, map);
         var scared = inSightRange && cameraRaised;
         var dazed  = inSightRange && flashFired;
 

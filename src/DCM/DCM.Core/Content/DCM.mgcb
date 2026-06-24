@@ -35,6 +35,8 @@
 /build:SpritesheetEnemy2.png
 /build:SpritesheetEnemy3.png
 /build:SpritesheetEnemy4.png
+/build:SpritesheetEnemy5.png
+/build:SpritesheetEnemy6.png
 
 #begin SpritesheetEnemy0_hide.png
 /importer:TextureImporter

@@ -64,16 +64,19 @@ public class PlayScreen : IGameScreen
         _hasNextLevel  = toNextLevel != null;
         _sounds        = sounds;
 
-        const int sheetCount = 5;
-        var sheets = new EnemySpriteSheet[sheetCount];
-        var hideSheets = new EnemySpriteSheet[sheetCount];
+        const int sheetCount     = 7;
+        const int hideSheetCount = 5;
+        var sheets     = new EnemySpriteSheet[sheetCount];
+        var hideSheets = new EnemySpriteSheet[hideSheetCount];
         for (var i = 0; i < sheetCount; i++)
         {
             var tex = content.Load<Texture2D>($"SpritesheetEnemy{i}");
             var pix = new Color[tex.Width * tex.Height];
             tex.GetData(pix);
             sheets[i] = new EnemySpriteSheet(pix, tex.Width, tex.Height, 6);
-
+        }
+        for (var i = 0; i < hideSheetCount; i++)
+        {
             var hideTex = content.Load<Texture2D>($"SpritesheetEnemy{i}_hide");
             var hidePix = new Color[hideTex.Width * hideTex.Height];
             hideTex.GetData(hidePix);
@@ -91,7 +94,7 @@ public class PlayScreen : IGameScreen
         {
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
             var si = spawn.type % sheetCount;
-            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si]);
+            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si % hideSheetCount], cameraImmune: si >= 5);
             enemy.OnHurt = () => _sounds.EnemyOuch.Play();
             enemy.OnDied = () => _sounds.EnemyDeath.Play();
             _enemies.Add(enemy);
@@ -217,6 +220,7 @@ public class PlayScreen : IGameScreen
                 _cameraFired = true;
                 _cameraRaiseTimer = 0f;
                 flashJustFired = true;
+                _sounds.CameraShutter.Play();
             }
 
             foreach (var p in _pickups) p.TryCollect(_player);

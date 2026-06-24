@@ -54,7 +54,8 @@ public class DCMGame : Game
             CreatePlayerDeathSound(),
             CreateEnemyOuchSound(),
             CreateEnemyDeathSound(),
-            CreateWinSound());
+            CreateWinSound(),
+            CreateCameraShutterSound());
 
         IGameScreen CreateMenu() =>
             new MenuScreen(_spriteBatch, font, GraphicsDevice, CreateLevelSelect, CreateSettings, _clickSound);
@@ -195,6 +196,23 @@ public class DCMGame : Game
             var vibrato = Math.Sin(2 * Math.PI * 10 * t) * 0.12;
             var noise   = (rng.NextDouble() * 2 - 1) * 0.1;
             WriteSample(data, i, ClipSample((Math.Sin(phase * (1 + vibrato)) * 0.85 + noise) * Math.Exp(-t * 2.5) * 0.8));
+        }
+        return new SoundEffect(data, sr, AudioChannels.Mono);
+    }
+
+    private static SoundEffect CreateCameraShutterSound()
+    {
+        const int sr = 44100;
+        var n    = sr * 120 / 1000;
+        var data = new byte[n * 2];
+        var rng  = new Random(7);
+        for (var i = 0; i < n; i++)
+        {
+            var t = (double)i / sr;
+            var click1 = Math.Exp(-t * 350) * (Math.Sin(2 * Math.PI * 3200 * t) * 0.6 + (rng.NextDouble() * 2 - 1) * 0.4);
+            var t2     = Math.Max(0, t - 0.04);
+            var click2 = Math.Exp(-t2 * 350) * (Math.Sin(2 * Math.PI * 2600 * t2) * 0.5 + (rng.NextDouble() * 2 - 1) * 0.35) * 0.75;
+            WriteSample(data, i, ClipSample((click1 + click2) * 0.65));
         }
         return new SoundEffect(data, sr, AudioChannels.Mono);
     }

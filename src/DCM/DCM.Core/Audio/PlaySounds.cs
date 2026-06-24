@@ -9,7 +9,8 @@ public sealed record PlaySounds(
     SoundEffect PlayerDeath,
     SoundEffect EnemyOuch,
     SoundEffect EnemyDeath,
-    SoundEffect Win) : IDisposable
+    SoundEffect Win,
+    SoundEffect CameraShutter) : IDisposable
 {
     public void Dispose()
     {
@@ -19,5 +20,6 @@ public sealed record PlaySounds(
         EnemyOuch.Dispose();
         EnemyDeath.Dispose();
         Win.Dispose();
+        CameraShutter.Dispose();
     }
 }

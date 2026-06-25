@@ -28,6 +28,7 @@ public class PlayScreen : IGameScreen
     private readonly Func<IGameScreen> _toLevelSelect;
     private readonly Func<int, IGameScreen>? _toNextLevel;
     private readonly PlaySounds _sounds;
+    private readonly FogOfWar _fog;
     private readonly bool _hasNextLevel;
     private readonly int _levelIndex;
 
@@ -127,6 +128,7 @@ public class PlayScreen : IGameScreen
             ceilPix, ceilTex.Width, ceilTex.Height,
             weaponTex);
         _hud = new HUD(sb, font, gd, clickSound);
+        _fog = new FogOfWar(_map.Width, _map.Height);
 
         Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
     }
@@ -153,6 +155,7 @@ public class PlayScreen : IGameScreen
         }
         else if (_gameOver || _won)
         {
+            if (_gameOver) _player.UpdateDeathSpin(dt);
             var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _hasNextLevel);
             if (action == HudAction.NextLevel) return _toNextLevel!(_player.Health);
             if (action == HudAction.MainMenu)  return _toLevelSelect();
@@ -182,6 +185,7 @@ public class PlayScreen : IGameScreen
                          kb.IsKeyDown(Keys.Up) || kb.IsKeyDown(Keys.Down) ||
                          leftX != 0 || leftY != 0;
 
+            _fog.Update(_player.PosX, _player.PosY, _map);
             _player.Update(dt, _map, new PlayerInput(
                 kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up)   || leftY >  0,
                 kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down)  || leftY <  0,
@@ -191,7 +195,7 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.Right),
                 kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > TriggerThreshold,
                 mouseDeltaX,
-                _cameraRaised));
+                _cameraRaised), _enemies);
 
             if (moving)
                 _renderer.WeaponBobPhase += dt * 7f;
@@ -224,7 +228,7 @@ public class PlayScreen : IGameScreen
             }
 
             foreach (var p in _pickups) p.TryCollect(_player);
-            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, cameraReady, flashJustFired);
+            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, _enemies, cameraReady, flashJustFired);
 
             if (_player.IsDead) _gameOver = true;
 
@@ -248,7 +252,7 @@ public class PlayScreen : IGameScreen
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest,
-            _cameraCooldown, CameraUseDuration, _player.SprintStamina);
+            _cameraCooldown, CameraUseDuration, _player.SprintStamina, _fog);
     }
 
     public void Dispose()

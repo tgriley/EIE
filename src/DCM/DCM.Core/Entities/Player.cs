@@ -2,6 +2,7 @@
 using DCM.Core.Input;
 using DCM.Core.World;
 using System;
+using System.Collections.Generic;
 
 namespace DCM.Core.Entities;
 
@@ -18,6 +19,7 @@ public class Player : ICamera, IDamageable, IHealable
     public bool IsDead => Health <= 0;
     public float HurtTimer { get; private set; } = 0f;
     public bool ReachedExit { get; private set; }
+    public (double X, double Y)? KillerPos { get; private set; }
 
     public Action? OnDamaged { get; set; }
     public Action? OnDied    { get; set; }
@@ -26,6 +28,8 @@ public class Player : ICamera, IDamageable, IHealable
 
     public float SprintStamina { get; private set; } = 1f;
     private bool _sprintDepleted;
+
+    public const double CollisionRadius = 0.35;
 
     private const double MoveSpeed = 2.8;
     private const double RunSpeed = 4.5;
@@ -61,7 +65,7 @@ public class Player : ICamera, IDamageable, IHealable
         PlaneY = oldPlaneX * sinR + PlaneY * cosR;
     }
 
-    public void Update(float dt, IMap map, PlayerInput input)
+    public void Update(float dt, IMap map, PlayerInput input, IReadOnlyList<Enemy>? enemies = null)
     {
         if (HurtTimer > 0) HurtTimer -= dt;
         if (_damageCooldown > 0) _damageCooldown -= dt;
@@ -97,8 +101,10 @@ public class Player : ICamera, IDamageable, IHealable
             newY += PlaneY / 0.66 * speed;
         }
 
-        if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)) PosX = newX;
-        if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))) PosY = newY;
+        if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)
+            && !TouchesAnyEnemy(newX, PosY, enemies)) PosX = newX;
+        if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))
+            && !TouchesAnyEnemy(PosX, newY, enemies)) PosY = newY;
 
         var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
         if (isSprinting && isMoving)
@@ -119,14 +125,30 @@ public class Player : ICamera, IDamageable, IHealable
         if (input.MouseDeltaX != 0) Rotate(input.MouseDeltaX * MouseSens);
     }
 
-    public void TakeDamage(int amount)
+    public void TakeDamage(int amount, double sourceX = 0, double sourceY = 0)
     {
         if (_damageCooldown > 0) return;
         Health = Math.Max(0, Health - amount);
         HurtTimer = 0.35f;
         _damageCooldown = 0.5f;
-        if (Health <= 0) OnDied?.Invoke();
+        if (Health <= 0) { KillerPos = (sourceX, sourceY); OnDied?.Invoke(); }
         else             OnDamaged?.Invoke();
+    }
+
+    public void UpdateDeathSpin(float dt)
+    {
+        if (KillerPos == null) return;
+        var dx = KillerPos.Value.X - PosX;
+        var dy = KillerPos.Value.Y - PosY;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist < 0.001) return;
+        var tx = dx / dist; var ty = dy / dist;
+        var dot   = DirX * tx + DirY * ty;
+        if (dot >= 0.9999) return;
+        var cross = DirX * ty - DirY * tx;
+        const double spinSpeed = 4.0;
+        var turn = Math.Min(spinSpeed * dt, Math.Acos(Math.Clamp(dot, -1.0, 1.0)));
+        Rotate(Math.Sign(cross) >= 0 ? turn : -turn);
     }
 
     public void Heal(int amount)
@@ -134,4 +156,18 @@ public class Player : ICamera, IDamageable, IHealable
         Health = Math.Min(100, Health + amount);
     }
 
+    private static bool TouchesAnyEnemy(double x, double y, IReadOnlyList<Enemy>? enemies)
+    {
+        if (enemies == null) return false;
+        const double minDist = CollisionRadius + Enemy.CollisionRadius;
+        const double minDistSq = minDist * minDist;
+        foreach (var e in enemies)
+        {
+            if (e.IsDead) continue;
+            var dx = x - e.PosX;
+            var dy = y - e.PosY;
+            if (dx * dx + dy * dy < minDistSq) return true;
+        }
+        return false;
+    }
 }

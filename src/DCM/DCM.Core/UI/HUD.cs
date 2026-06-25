@@ -1,3 +1,4 @@
+#nullable enable
 using DCM.Core;
 using DCM.Core.Entities;
 using DCM.Core.World;
@@ -43,7 +44,6 @@ public class HUD : IDisposable
     private static readonly Color ColFloor      = new(30, 28, 25);
     private static readonly Color ColPlayer     = new(60, 200, 60);
     private static readonly Color ColEnemy      = new(220, 30, 30);
-    private static readonly Color ColExit       = new(60, 180, 220);
     private static readonly Color ColPanelBg  = new(0, 0, 0, 160);
     private static readonly Color ColText     = new(235, 225, 200);
     private static readonly Color ColTextDim  = new(160, 150, 130);
@@ -68,7 +68,7 @@ public class HUD : IDisposable
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",       _painter);
-        _mainMenuButton  = new Button(new Rectangle(btnX, SH / 2 + 80,  btnW, btnH), "LEVEL SELECT", _painter);
+        _mainMenuButton  = new Button(new Rectangle(btnX, SH / 2 + 80,  btnW, btnH), "MAIN MENU",    _painter);
         _quitButton      = new Button(new Rectangle(btnX, SH / 2 + 150, btnW, btnH), "QUIT",         _painter);
         _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "NEXT LEVEL",   _painter);
     }
@@ -116,7 +116,8 @@ public class HUD : IDisposable
     public void Draw(GameTime gameTime, Player player, List<Enemy> enemies,
         IMap map, bool gameOver, bool won, bool paused = false, bool hasNextLevel = false,
         float elapsed = 0f, float bestTime = float.MaxValue, bool isNewBest = false,
-        float cameraCooldown = 0f, float cameraMaxCooldown = 5f, float sprintStamina = 1f)
+        float cameraCooldown = 0f, float cameraMaxCooldown = 5f, float sprintStamina = 1f,
+        FogOfWar? fog = null)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (!paused) _controlsTimer -= dt;
@@ -127,7 +128,7 @@ public class HUD : IDisposable
 
         if (paused)
         {
-            DrawMinimap(player, enemies, map);
+            DrawMinimap(player, enemies, map, fog);
             DrawPauseOverlay(mousePos);
         }
         else if (gameOver || won)
@@ -136,7 +137,7 @@ public class HUD : IDisposable
         }
         else
         {
-            DrawMinimap(player, enemies, map);
+            DrawMinimap(player, enemies, map, fog);
             _healthBar.Draw(_painter, player.Health / 100f, player.Health.ToString(), 0.5f);
             _sprintBar.Draw(_painter, sprintStamina,
                 sprintStamina >= 1f ? "READY" : $"{sprintStamina:F1}s");
@@ -160,7 +161,7 @@ public class HUD : IDisposable
         _painter.DrawTextShadow(text, new Vector2((SW - size.X) / 2f, 14), ColText);
     }
 
-    private void DrawMinimap(Player player, List<Enemy> enemies, IMap map)
+    private void DrawMinimap(Player player, List<Enemy> enemies, IMap map, FogOfWar? fog)
     {
         int mapW = map.Width * MapTileSize, mapH = map.Height * MapTileSize;
         int ox = MapPadding, oy = MapPadding;
@@ -171,10 +172,9 @@ public class HUD : IDisposable
         for (var ty = 0; ty < map.Height; ty++)
         for (var tx = 0; tx < map.Width; tx++)
         {
+            if (fog != null && !fog.IsSeen(tx, ty)) continue;
             var tile = map.GetTile(tx, ty);
-            var c = tile == 0 ? ColFloor
-                : tile == Tile.Exit ? ColExit
-                : ColWall;
+            var c = tile == 0 ? ColFloor : ColWall;
             _painter.DrawRect(ox + tx * MapTileSize, oy + ty * MapTileSize,
                 MapTileSize - 1, MapTileSize - 1, c);
         }
@@ -182,6 +182,7 @@ public class HUD : IDisposable
         foreach (var e in enemies)
         {
             if (e.IsDead) continue;
+            if (fog != null && !fog.IsSeen((int)e.PosX, (int)e.PosY)) continue;
             _painter.DrawRect(ox + (int)(e.PosX * MapTileSize) - 2,
                 oy + (int)(e.PosY * MapTileSize) - 2, 4, 4, ColEnemy);
         }

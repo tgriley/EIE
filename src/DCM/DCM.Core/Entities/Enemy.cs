@@ -2,6 +2,7 @@
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using System;
+using System.Collections.Generic;
 
 namespace DCM.Core.Entities;
 
@@ -18,6 +19,7 @@ public enum EnemyState
 public class Enemy : IBillboard
 {
     public const int MaxHealth = 60;
+    public const double CollisionRadius = 0.35;
 
     public double PosX { get; private set; }
     public double PosY { get; private set; }
@@ -66,7 +68,8 @@ public class Enemy : IBillboard
         _patrolDirY = Math.Sin(a);
     }
 
-    public void Update(GameTime gameTime, IDamageable target, ICamera camera, IMap map, bool cameraRaised = false, bool flashFired = false)
+    public void Update(GameTime gameTime, IDamageable target, ICamera camera, IMap map,
+        IReadOnlyList<Enemy> others, bool cameraRaised = false, bool flashFired = false)
     {
         if (IsDead) return;
 
@@ -86,7 +89,7 @@ public class Enemy : IBillboard
         switch (State)
         {
             case EnemyState.Patrol:
-                DoPatrol(dt, map);
+                DoPatrol(dt, map, target, others);
                 if (dist < ChaseRange && HasLineOfSight(target, map))
                 {
                     if (dazed)       { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
@@ -100,7 +103,7 @@ public class Enemy : IBillboard
                 else if (scared)                  { State = EnemyState.Flee; }
                 else if (dist < AttackRange)        State = EnemyState.Attack;
                 else if (dist > ChaseRange * 1.5)   State = EnemyState.Patrol;
-                else MoveToward(dx / dist, dy / dist, MoveSpeed * dt, map);
+                else MoveToward(dx / dist, dy / dist, MoveSpeed * dt, map, target, others);
                 break;
 
             case EnemyState.Attack:
@@ -109,7 +112,7 @@ public class Enemy : IBillboard
                 else if (dist > AttackRange * 1.2)  State = EnemyState.Chase;
                 else if (_attackCooldown <= 0)
                 {
-                    target.TakeDamage(15);
+                    target.TakeDamage(15, PosX, PosY);
                     _attackCooldown = 1.2f;
                 }
                 break;
@@ -117,7 +120,7 @@ public class Enemy : IBillboard
             case EnemyState.Flee:
                 if (dazed)        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
                 else if (!scared)   State = dist < ChaseRange && HasLineOfSight(target, map) ? EnemyState.Chase : EnemyState.Patrol;
-                else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map);
+                else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map, target, others);
                 break;
 
             case EnemyState.Dazed:
@@ -171,7 +174,7 @@ public class Enemy : IBillboard
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private void DoPatrol(float dt, IMap map)
+    private void DoPatrol(float dt, IMap map, IDamageable player, IReadOnlyList<Enemy> others)
     {
         _patrolTimer -= dt;
         var speed = PatrolSpeed * dt;
@@ -188,18 +191,36 @@ public class Enemy : IBillboard
         }
         else
         {
-            MoveToward(_patrolDirX, _patrolDirY, speed, map);
+            MoveToward(_patrolDirX, _patrolDirY, speed, map, player, others);
         }
     }
 
-    private void MoveToward(double dx, double dy, double speed, IMap map)
+    private void MoveToward(double dx, double dy, double speed, IMap map,
+        IDamageable player, IReadOnlyList<Enemy> others)
     {
         var nx = PosX + dx * speed;
         var ny = PosY + dy * speed;
         const double margin = 0.3;
 
-        if (!map.IsWall((int)(nx + Math.Sign(dx) * margin), (int)PosY)) PosX = nx;
-        if (!map.IsWall((int)PosX, (int)(ny + Math.Sign(dy) * margin))) PosY = ny;
+        if (!map.IsWall((int)(nx + Math.Sign(dx) * margin), (int)PosY)
+            && !TouchesAny(nx, PosY, player, others)) PosX = nx;
+        if (!map.IsWall((int)PosX, (int)(ny + Math.Sign(dy) * margin))
+            && !TouchesAny(PosX, ny, player, others)) PosY = ny;
+    }
+
+    private bool TouchesAny(double x, double y, IDamageable player, IReadOnlyList<Enemy> others)
+    {
+        const double minDist = CollisionRadius * 2;
+        const double minDistSq = minDist * minDist;
+        var pdx = x - player.PosX; var pdy = y - player.PosY;
+        if (pdx * pdx + pdy * pdy < minDistSq) return true;
+        foreach (var e in others)
+        {
+            if (ReferenceEquals(e, this) || e.IsDead) continue;
+            var edx = x - e.PosX; var edy = y - e.PosY;
+            if (edx * edx + edy * edy < minDistSq) return true;
+        }
+        return false;
     }
 
     private bool IsLookedAt(ICamera camera)

@@ -46,7 +46,9 @@ public class DCMGame : Game
         }
 
         _spriteBatch = new SpriteBatch(GraphicsDevice);
-        var font = Content.Load<SpriteFont>("Fonts/Hud");
+        var font      = Content.Load<SpriteFont>("Fonts/Hud");
+        var titleFont  = Content.Load<SpriteFont>("Fonts/MenuTitle");
+        var titleFont2 = Content.Load<SpriteFont>("Fonts/MenuTitle2");
         _clickSound = CreateClickSound();
         _playSounds = new PlaySounds(
             CreateGunshotSound(),
@@ -58,7 +60,7 @@ public class DCMGame : Game
             CreateCameraShutterSound());
 
         IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, GraphicsDevice, CreateLevelSelect, CreateSettings, _clickSound);
+            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, () => CreatePlay(0), CreateSettings, _clickSound);
 
         IGameScreen CreateSettings() =>
             new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound,
@@ -71,16 +73,13 @@ public class DCMGame : Game
                 },
                 LevelProgress.Reset);
 
-        IGameScreen CreateLevelSelect() =>
-            new LevelSelectScreen(_spriteBatch, font, GraphicsDevice, i => CreatePlay(i), CreateMenu, _clickSound);
-
         IGameScreen CreatePlay(int levelIndex, int startHealth = 100)
         {
             Func<int, IGameScreen>? nextLevel = levelIndex < Map.LevelCount - 1
                 ? health => CreatePlay(levelIndex + 1, health)
                 : null;
             return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                levelIndex, CreateLevelSelect, nextLevel, _clickSound, _playSounds, startHealth);
+                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth);
         }
 
         _currentScreen = CreateMenu();

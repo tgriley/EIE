@@ -44,15 +44,14 @@ public class HUD : IDisposable
     private static readonly Color ColPlayer     = new(60, 200, 60);
     private static readonly Color ColEnemy      = new(220, 30, 30);
     private static readonly Color ColExit       = new(60, 180, 220);
-    private static readonly Color ColHpBar      = new(180, 20, 20);
-    private static readonly Color ColHpBarFull  = new(220, 50, 40);
-    private static readonly Color ColBarBg      = new(30, 25, 22);
-    private static readonly Color ColCamReady   = new(80, 200, 220);
-    private static readonly Color ColCamCharge  = new(50, 110, 150);
-    private static readonly Color ColPanelBg    = new(0, 0, 0, 160);
-    private static readonly Color ColText       = new(235, 225, 200);
-    private static readonly Color ColTextDim    = new(160, 150, 130);
-    private static readonly Color ColCrosshair  = new(255, 255, 255, 180);
+    private static readonly Color ColPanelBg  = new(0, 0, 0, 160);
+    private static readonly Color ColText     = new(235, 225, 200);
+    private static readonly Color ColTextDim  = new(160, 150, 130);
+    private static readonly Color ColCrosshair = new(255, 255, 255, 180);
+
+    private readonly StatusBarPanel _healthBar;
+    private readonly StatusBarPanel _sprintBar;
+    private readonly StatusBarPanel _cameraBar;
 
     private float _controlsTimer = 12f;
 
@@ -60,6 +59,12 @@ public class HUD : IDisposable
     {
         _painter    = new UIPainter(sb, font, gd);
         _clickSound = clickSound;
+
+        const int barX = 12, panelH = 50, gap = 6, step = panelH + gap;
+        int yCamera = SH - 60, ySprint = yCamera - step, yHealth = ySprint - step;
+        _healthBar = new(barX, yHealth, "HEALTH", new(220, 50, 40),  new(180, 20, 20));
+        _sprintBar = new(barX, ySprint, "SPRINT", new(220, 200, 50), new(100, 90, 25));
+        _cameraBar = new(barX, yCamera, "FLASH",  new(80, 200, 220), new(50, 110, 150));
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",       _painter);
@@ -111,7 +116,7 @@ public class HUD : IDisposable
     public void Draw(GameTime gameTime, Player player, List<Enemy> enemies,
         IMap map, bool gameOver, bool won, bool paused = false, bool hasNextLevel = false,
         float elapsed = 0f, float bestTime = float.MaxValue, bool isNewBest = false,
-        float cameraCooldown = 0f, float cameraMaxCooldown = 5f)
+        float cameraCooldown = 0f, float cameraMaxCooldown = 5f, float sprintStamina = 1f)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (!paused) _controlsTimer -= dt;
@@ -132,8 +137,12 @@ public class HUD : IDisposable
         else
         {
             DrawMinimap(player, enemies, map);
-            DrawHealthBar(player);
-            DrawCameraIndicator(cameraCooldown, cameraMaxCooldown);
+            _healthBar.Draw(_painter, player.Health / 100f, player.Health.ToString(), 0.5f);
+            _sprintBar.Draw(_painter, sprintStamina,
+                sprintStamina >= 1f ? "READY" : $"{sprintStamina:F1}s");
+            var chargeFrac = cameraMaxCooldown > 0 ? 1f - cameraCooldown / cameraMaxCooldown : 1f;
+            _cameraBar.Draw(_painter, chargeFrac,
+                chargeFrac >= 1f ? "READY" : $"{cameraCooldown:F1}s");
             DrawObjectiveText();
             DrawTimer(elapsed);
             DrawCrosshair();
@@ -183,41 +192,6 @@ public class HUD : IDisposable
         _painter.DrawLine(px, py, px + (int)(player.DirX * 6), py + (int)(player.DirY * 6), ColPlayer);
     }
 
-    private void DrawHealthBar(Player player)
-    {
-        int panelX = 12, panelY = SH - 60, barW = 160, barH = 18;
-
-        _painter.DrawRect(panelX - 4, panelY - 26, barW + 8, barH + 32, ColPanelBg);
-        _painter.DrawTextShadow("HEALTH", new Vector2(panelX, panelY - 20), ColText, 0.85f);
-        _painter.DrawRect(panelX, panelY, barW, barH, ColBarBg);
-
-        var frac  = player.Health / 100f;
-        var fillW = (int)(barW * frac);
-        if (fillW > 0)
-            _painter.DrawRect(panelX, panelY, fillW, barH, frac > 0.5f ? ColHpBarFull : ColHpBar);
-
-        _painter.DrawTextShadow(player.Health.ToString(),
-            new Vector2(panelX + barW + 8, panelY), ColText, 0.85f);
-    }
-
-    private void DrawCameraIndicator(float cooldown, float maxCooldown)
-    {
-        const int barW = 160, barH = 18;
-        int panelX = SW - barW - 12, panelY = SH - 60;
-
-        _painter.DrawRect(panelX - 4, panelY - 26, barW + 8, barH + 32, ColPanelBg);
-        _painter.DrawTextShadow("CAMERA", new Vector2(panelX, panelY - 20), ColText, 0.85f);
-        _painter.DrawRect(panelX, panelY, barW, barH, ColBarBg);
-
-        var chargeFrac = maxCooldown > 0 ? 1f - cooldown / maxCooldown : 1f;
-        var fillW = (int)(barW * chargeFrac);
-        if (fillW > 0)
-            _painter.DrawRect(panelX, panelY, fillW, barH, chargeFrac >= 1f ? ColCamReady : ColCamCharge);
-
-        var label = chargeFrac >= 1f ? "READY" : $"{cooldown:F1}s";
-        _painter.DrawTextShadow(label, new Vector2(panelX + barW + 8, panelY), ColText, 0.85f);
-    }
-
     private void DrawCrosshair()
     {
         int cx = SW / 2, cy = SH / 2, len = 8, gap = 3;
@@ -234,8 +208,11 @@ public class HUD : IDisposable
         int x = 14, y = SH / 2 - 60;
         foreach (var line in new[]
                  {
-                     "W A S D  -  Move", "Mouse    -  Look", "< >      -  Turn",
-                     "Shift    -  Run",  "LClick   -  Attack", "M        -  Map",
+                     "W A S D  -  Move",   
+                     "Shift    -  Run", 
+                     "Mouse    -  Look",   
+                     "RClick   -  Camera",    
+                     "LClick   -  Photo",
                      "Esc      -  Pause"
                  })
         {

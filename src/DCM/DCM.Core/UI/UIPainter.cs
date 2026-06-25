@@ -34,18 +34,20 @@ public class UIPainter : IDisposable
     }
 
     public void DrawTextShadow(string text, Vector2 pos, Color color, float scale = 1f)
+        => DrawTextShadow(_font, text, pos, color, scale);
+
+    public void DrawTextShadow(SpriteFont font, string text, Vector2 pos, Color color, float scale = 1f)
     {
         var shadow = new Color(0, 0, 0, (int)color.A);
-        _sb.DrawString(_font, text, pos + new Vector2(2, 2),
+        _sb.DrawString(font, text, pos + new Vector2(2, 2),
             shadow, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
-        _sb.DrawString(_font, text, pos,
+        _sb.DrawString(font, text, pos,
             color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
     }
 
-    public Vector2 Measure(string text)
-    {
-        return _font.MeasureString(text);
-    }
+    public Vector2 Measure(string text) => _font.MeasureString(text);
+
+    public Vector2 Measure(SpriteFont font, string text) => font.MeasureString(text);
 
     public void DrawLine(int x0, int y0, int x1, int y1, Color c)
     {

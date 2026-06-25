@@ -248,7 +248,7 @@ public class PlayScreen : IGameScreen
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest,
-            _cameraCooldown, CameraUseDuration);
+            _cameraCooldown, CameraUseDuration, _player.SprintStamina);
     }
 
     public void Dispose()

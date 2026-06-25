@@ -24,10 +24,15 @@ public class Player : ICamera, IDamageable, IHealable
 
     private float _damageCooldown = 0f;
 
+    public float SprintStamina { get; private set; } = 1f;
+    private bool _sprintDepleted;
+
     private const double MoveSpeed = 2.8;
     private const double RunSpeed = 4.5;
     private const double TurnSpeed = 2.0;
     private const double MouseSens = 0.0015;
+    private const float SprintMax        = 1f;
+    private const float SprintRecharge   = 1f / 5f;
 
     public Player(double posX, double posY, double angle, int startHealth = 100)
     {
@@ -61,7 +66,8 @@ public class Player : ICamera, IDamageable, IHealable
         if (HurtTimer > 0) HurtTimer -= dt;
         if (_damageCooldown > 0) _damageCooldown -= dt;
 
-        var baseSpeed = input.Running ? RunSpeed : MoveSpeed;
+        var isSprinting = input.Running && !_sprintDepleted;
+        var baseSpeed = isSprinting ? RunSpeed : MoveSpeed;
         var speed = baseSpeed * (input.CameraRaising ? 0.5 : 1.0) * dt;
         const double margin = 0.25;
 
@@ -93,6 +99,18 @@ public class Player : ICamera, IDamageable, IHealable
 
         if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)) PosX = newX;
         if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))) PosY = newY;
+
+        var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
+        if (isSprinting && isMoving)
+        {
+            SprintStamina = Math.Max(0f, SprintStamina - dt / SprintMax);
+            if (SprintStamina <= 0f) _sprintDepleted = true;
+        }
+        else
+        {
+            SprintStamina = Math.Min(1f, SprintStamina + dt * SprintRecharge);
+            if (_sprintDepleted && SprintStamina >= 0.25f) _sprintDepleted = false;
+        }
 
         ReachedExit = map.IsExit((int)PosX, (int)PosY);
 

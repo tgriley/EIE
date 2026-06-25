@@ -23,16 +23,19 @@ public class MainMenu : IDisposable
     private const int SW = 1280;
     private const int SH = 720;
 
-    private static readonly Color ColBg    = new(10, 8, 8);
-    private static readonly Color ColTitle = new(220, 180, 80);
+    private static readonly Color ColBg = new(10, 8, 8);
 
+    private readonly SpriteFont _titleFont;
+    private readonly SpriteFont _titleFont2;
     private readonly Button _startButton;
     private readonly Button _settingsButton;
     private readonly Button _exitButton;
 
-    public MainMenu(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
+    public MainMenu(SpriteBatch sb, SpriteFont font, SpriteFont titleFont, SpriteFont titleFont2, GraphicsDevice gd, SoundEffect clickSound)
     {
         _painter    = new UIPainter(sb, font, gd);
+        _titleFont  = titleFont;
+        _titleFont2 = titleFont2;
         _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
@@ -71,22 +74,22 @@ public class MainMenu : IDisposable
 
         _painter.DrawRect(0, 0, SW, SH, ColBg);
 
-        const string title = "Escape From Island Epsteinstien";
-        var titleScale = 2f;
-        var titleSize = _painter.Measure(title);
-        _painter.DrawTextShadow(title,
-            new Vector2((SW - titleSize.X * titleScale) / 2f, SH / 2f - 180),
-            ColTitle, titleScale);
+        const string title1 = "Escape From Island";
+        var title1Size = _painter.Measure(_titleFont, title1);
+        float titleY = SH / 2f - 256;
+        _painter.DrawTextShadow(_titleFont, title1,
+            new Vector2((SW - title1Size.X) / 2f, titleY),
+            Color.White);
+
+        const string title2 = "Epsteinstien";
+        var title2Size = _painter.Measure(_titleFont2, title2);
+        _painter.DrawTextShadow(_titleFont2, title2,
+            new Vector2((SW - title2Size.X) / 2f, titleY + title1Size.Y),
+            Color.Red);
 
         _startButton.Draw(mousePos,    _nav.IsSelected(0));
         _settingsButton.Draw(mousePos, _nav.IsSelected(1));
         _exitButton.Draw(mousePos,     _nav.IsSelected(2));
-
-        const string hint = "W A S D + Mouse to play   |   Esc to pause";
-        var hintSize = _painter.Measure(hint);
-        _painter.DrawTextShadow(hint,
-            new Vector2((SW - hintSize.X * 0.75f) / 2f, SH - 50),
-            new Color(80, 70, 60), 0.75f);
 
         _painter.End();
     }

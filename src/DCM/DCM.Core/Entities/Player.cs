@@ -101,10 +101,15 @@ public class Player : ICamera, IDamageable, IHealable
             newY += PlaneY / 0.66 * speed;
         }
 
-        if (!map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY)
-            && !TouchesAnyEnemy(newX, PosY, enemies)) PosX = newX;
-        if (!map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin))
-            && !TouchesAnyEnemy(PosX, newY, enemies)) PosY = newY;
+        var xClear = !map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY);
+        var xBlocker = xClear ? TouchingEnemy(newX, PosY, enemies) : null;
+        if (xClear && xBlocker == null) PosX = newX;
+        else if (xBlocker != null) TakeDamage(8, xBlocker.PosX, xBlocker.PosY);
+
+        var yClear = !map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin));
+        var yBlocker = yClear ? TouchingEnemy(PosX, newY, enemies) : null;
+        if (yClear && yBlocker == null) PosY = newY;
+        else if (yBlocker != null) TakeDamage(8, yBlocker.PosX, yBlocker.PosY);
 
         var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
         if (isSprinting && isMoving)
@@ -156,9 +161,9 @@ public class Player : ICamera, IDamageable, IHealable
         Health = Math.Min(100, Health + amount);
     }
 
-    private static bool TouchesAnyEnemy(double x, double y, IReadOnlyList<Enemy>? enemies)
+    private static Enemy? TouchingEnemy(double x, double y, IReadOnlyList<Enemy>? enemies)
     {
-        if (enemies == null) return false;
+        if (enemies == null) return null;
         const double minDist = CollisionRadius + Enemy.CollisionRadius;
         const double minDistSq = minDist * minDist;
         foreach (var e in enemies)
@@ -166,8 +171,8 @@ public class Player : ICamera, IDamageable, IHealable
             if (e.IsDead) continue;
             var dx = x - e.PosX;
             var dy = y - e.PosY;
-            if (dx * dx + dy * dy < minDistSq) return true;
+            if (dx * dx + dy * dy < minDistSq) return e;
         }
-        return false;
+        return null;
     }
 }

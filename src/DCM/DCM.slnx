@@ -1,0 +1,4 @@
+<Solution>
+    <Project Path="DCM.Core/DCM.Core.csproj"/>
+    <Project Path="DCM.DesktopGL/DCM.DesktopGL.csproj"/>
+</Solution>

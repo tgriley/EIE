@@ -16,6 +16,8 @@ public class IntroScreen : IGameScreen
     private const int SW = 1280;
     private const int SH = 720;
     private const int FrameCount = 6;
+    private const int ImmuneBox = 180;
+    private const int ImmuneBoxY = 400;
 
     private static readonly Color ColBg      = new(10, 8, 8);
     private static readonly Color ColTitle    = new(220, 60, 50);
@@ -29,7 +31,7 @@ public class IntroScreen : IGameScreen
         "Raise your camera (hold RIGHT MOUSE) and most creatures recoil in fear.",
         "Snap a photo (LEFT MOUSE) while it is raised and the flash leaves them dazed.",
         "",
-        "But the camera does not work on everything. Some creatures are BLIND to it —",
+        "But the camera does not work on everything. Some creatures are BLIND to it -",
         "they feel no fear, cannot be dazed, and will hunt you no matter what you do.",
         "",
         "Learn to recognise these two. When you see them, run or fight:"
@@ -122,7 +124,7 @@ public class IntroScreen : IGameScreen
             y += 32f;
         }
 
-        DrawImmune(_immuneA, SW / 2 - 220);
+        DrawImmune(_immuneA, SW / 2 - ImmuneBox - 40);
         DrawImmune(_immuneB, SW / 2 + 40);
 
         const string caption = "CAMERA-IMMUNE";
@@ -136,15 +138,14 @@ public class IntroScreen : IGameScreen
         _painter.End();
     }
 
-    private void DrawImmune(Texture2D sheet, int x)
+    private void DrawImmune(Texture2D sheet, int boxX)
     {
         var frameW = sheet.Width / FrameCount;
-        const int destH = 180;
-        var destW = destH * frameW / sheet.Height;
-        var dest  = new Rectangle(x + (180 - destW) / 2, 400, destW, destH);
+        var destW  = ImmuneBox * frameW / sheet.Height;
+        var dest   = new Rectangle(boxX + (ImmuneBox - destW) / 2, ImmuneBoxY, destW, ImmuneBox);
 
-        _painter.DrawRect(x - 6, 394, 192, destH + 12, ColPanelEdge);
-        _painter.DrawRect(x - 4, 396, 188, destH + 8, ColPanel);
+        _painter.DrawRect(boxX - 6, ImmuneBoxY - 6, ImmuneBox + 12, ImmuneBox + 12, ColPanelEdge);
+        _painter.DrawRect(boxX - 4, ImmuneBoxY - 4, ImmuneBox + 8, ImmuneBox + 8, ColPanel);
         _painter.DrawTexture(sheet, dest, new Rectangle(0, 0, frameW, sheet.Height), Color.White);
     }
 

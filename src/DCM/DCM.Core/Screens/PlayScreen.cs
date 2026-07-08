@@ -36,7 +36,6 @@ public class PlayScreen : IGameScreen
     private bool _won;
     private bool _paused;
     private bool _prevEsc;
-    private bool _prevM;
     private bool _firstInputFrame = true;
     private bool _cameraRaised;
     private bool _cameraFired;
@@ -65,23 +64,17 @@ public class PlayScreen : IGameScreen
         _hasNextLevel  = toNextLevel != null;
         _sounds        = sounds;
 
-        const int sheetCount     = 7;
-        const int hideSheetCount = 5;
-        var sheets     = new EnemySpriteSheet[sheetCount];
-        var hideSheets = new EnemySpriteSheet[hideSheetCount];
-        for (var i = 0; i < sheetCount; i++)
+        var sheets     = new EnemySpriteSheet[EnemyCatalog.SpriteCount];
+        var hideSheets = new EnemySpriteSheet[EnemyCatalog.HideSpriteCount];
+        for (var i = 0; i < sheets.Length; i++)
         {
-            var tex = content.Load<Texture2D>($"SpritesheetEnemy{i}");
-            var pix = new Color[tex.Width * tex.Height];
-            tex.GetData(pix);
-            sheets[i] = new EnemySpriteSheet(pix, tex.Width, tex.Height, 6);
+            var (pix, w, h) = LoadPixels(content, $"SpritesheetEnemy{i}");
+            sheets[i] = new EnemySpriteSheet(pix, w, h, 6);
         }
-        for (var i = 0; i < hideSheetCount; i++)
+        for (var i = 0; i < hideSheets.Length; i++)
         {
-            var hideTex = content.Load<Texture2D>($"SpritesheetEnemy{i}_hide");
-            var hidePix = new Color[hideTex.Width * hideTex.Height];
-            hideTex.GetData(hidePix);
-            hideSheets[i] = new EnemySpriteSheet(hidePix, hideTex.Width, hideTex.Height, 6);
+            var (pix, w, h) = LoadPixels(content, $"SpritesheetEnemy{i}_hide");
+            hideSheets[i] = new EnemySpriteSheet(pix, w, h, 6);
         }
 
         _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, startHealth);
@@ -94,8 +87,9 @@ public class PlayScreen : IGameScreen
         foreach (var spawn in _map.EnemySpawns)
         {
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
-            var si = spawn.type % sheetCount;
-            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si % hideSheetCount], cameraImmune: si >= 5);
+            var si = spawn.type % EnemyCatalog.SpriteCount;
+            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si % hideSheets.Length],
+                cameraImmune: EnemyCatalog.IsCameraImmune(spawn.type));
             enemy.OnHurt = () => _sounds.EnemyOuch.Play();
             enemy.OnDied = () => _sounds.EnemyDeath.Play();
             _enemies.Add(enemy);
@@ -103,29 +97,17 @@ public class PlayScreen : IGameScreen
 
         var texVariant = _map.TextureVariant;
 
-        var wallTex = content.Load<Texture2D>($"TextureWall{texVariant}");
-        var wallPix = new Color[wallTex.Width * wallTex.Height];
-        wallTex.GetData(wallPix);
-
-        var doorTex = content.Load<Texture2D>("TextureDoor0");
-        var doorPix = new Color[doorTex.Width * doorTex.Height];
-        doorTex.GetData(doorPix);
-
-        var floorTex = content.Load<Texture2D>($"TextureFloor{texVariant}");
-        var floorPix = new Color[floorTex.Width * floorTex.Height];
-        floorTex.GetData(floorPix);
-
-        var ceilTex = content.Load<Texture2D>($"TextureCeiling{texVariant}");
-        var ceilPix = new Color[ceilTex.Width * ceilTex.Height];
-        ceilTex.GetData(ceilPix);
-
+        var (wallPix,  wallW,  wallH)  = LoadPixels(content, $"TextureWall{texVariant}");
+        var (doorPix,  doorW,  doorH)  = LoadPixels(content, "TextureDoor0");
+        var (floorPix, floorW, floorH) = LoadPixels(content, $"TextureFloor{texVariant}");
+        var (ceilPix,  ceilW,  ceilH)  = LoadPixels(content, $"TextureCeiling{texVariant}");
         var weaponTex = content.Load<Texture2D>("Camera");
 
         _renderer = new RaycasterRenderer(gd,
-            wallPix, wallTex.Width, wallTex.Height,
-            doorPix, doorTex.Width, doorTex.Height,
-            floorPix, floorTex.Width, floorTex.Height,
-            ceilPix, ceilTex.Width, ceilTex.Height,
+            wallPix,  wallW,  wallH,
+            doorPix,  doorW,  doorH,
+            floorPix, floorW, floorH,
+            ceilPix,  ceilW,  ceilH,
             weaponTex);
         _hud = new HUD(sb, font, gd, clickSound);
         _fog = new FogOfWar(_map.Width, _map.Height);
@@ -162,13 +144,6 @@ public class PlayScreen : IGameScreen
         }
         else
         {
-            var mDown = kb.IsKeyDown(Keys.M);
-            if (mDown && !_prevM)
-            {
-                /* _showFullMap toggle — wired when minimap supports it */
-            }
-            _prevM = mDown;
-
             _elapsed += dt;
 
             var leftX  = Math.Abs(gp.ThumbSticks.Left.X)  > StickDeadZone ? gp.ThumbSticks.Left.X  : 0f;
@@ -253,6 +228,14 @@ public class PlayScreen : IGameScreen
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest,
             _cameraCooldown, CameraUseDuration, _player.SprintStamina, _fog);
+    }
+
+    private static (Color[] pixels, int width, int height) LoadPixels(ContentManager content, string name)
+    {
+        var tex = content.Load<Texture2D>(name);
+        var pixels = new Color[tex.Width * tex.Height];
+        tex.GetData(pixels);
+        return (pixels, tex.Width, tex.Height);
     }
 
     public void Dispose()

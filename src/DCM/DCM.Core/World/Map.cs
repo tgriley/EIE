@@ -6,15 +6,13 @@ using System.Text.Json;
 
 namespace DCM.Core.World;
 
-/// <summary>
-/// Tile type constants. 0 = empty, 1-7 = wall variants, 9 = exit door.
-/// </summary>
+// Tile type constants. 0 = empty, 1-3 = wall variants, 9 = exit door.
 public static class Tile
 {
     public const int Empty = 0;
-    public const int Wall1 = 1; // Primary stone
-    public const int Wall2 = 2; // Darker stone
-    public const int Wall3 = 3; // Brick variant
+    public const int Wall1 = 1;
+    public const int Wall2 = 2;
+    public const int Wall3 = 3;
     public const int Exit = 9;
 }
 

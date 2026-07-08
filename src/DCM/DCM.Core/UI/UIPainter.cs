@@ -33,6 +33,11 @@ public class UIPainter : IDisposable
         _sb.Draw(_pixel, new Rectangle(x, y, w, h), c);
     }
 
+    public void DrawTexture(Texture2D tex, Rectangle dest, Rectangle? source, Color c)
+    {
+        _sb.Draw(tex, dest, source, c);
+    }
+
     public void DrawTextShadow(string text, Vector2 pos, Color color, float scale = 1f)
         => DrawTextShadow(_font, text, pos, color, scale);
 

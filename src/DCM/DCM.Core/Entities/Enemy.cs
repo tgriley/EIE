@@ -52,7 +52,11 @@ public class Enemy : IBillboard
     private const double AttackRange = 0.9;
     private const double MoveSpeed = 1.5;
     private const double PatrolSpeed = 0.8;
+    private const double CameraImmuneSpeedFactor = 0.55;
     private const float DazeDuration = 5f;
+
+    private readonly double _moveSpeed;
+    private readonly double _patrolSpeed;
 
     private static readonly Random _rng = new();
 
@@ -63,6 +67,9 @@ public class Enemy : IBillboard
         SpriteSheet = spriteSheet;
         HideSpriteSheet = hideSpriteSheet;
         CameraImmune = cameraImmune;
+        var speedFactor = cameraImmune ? CameraImmuneSpeedFactor : 1.0;
+        _moveSpeed   = MoveSpeed * speedFactor;
+        _patrolSpeed = PatrolSpeed * speedFactor;
         var a = _rng.NextDouble() * Math.PI * 2;
         _patrolDirX = Math.Cos(a);
         _patrolDirY = Math.Sin(a);
@@ -103,7 +110,7 @@ public class Enemy : IBillboard
                 else if (scared)                  { State = EnemyState.Flee; }
                 else if (dist < AttackRange)        State = EnemyState.Attack;
                 else if (dist > ChaseRange * 1.5)   State = EnemyState.Patrol;
-                else MoveToward(dx / dist, dy / dist, MoveSpeed * dt, map, target, others);
+                else MoveToward(dx / dist, dy / dist, _moveSpeed * dt, map, target, others);
                 break;
 
             case EnemyState.Attack:
@@ -120,7 +127,7 @@ public class Enemy : IBillboard
             case EnemyState.Flee:
                 if (dazed)        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
                 else if (!scared)   State = dist < ChaseRange && HasLineOfSight(target, map) ? EnemyState.Chase : EnemyState.Patrol;
-                else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, MoveSpeed * dt, map, target, others);
+                else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, _moveSpeed * dt, map, target, others);
                 break;
 
             case EnemyState.Dazed:
@@ -177,7 +184,7 @@ public class Enemy : IBillboard
     private void DoPatrol(float dt, IMap map, IDamageable player, IReadOnlyList<Enemy> others)
     {
         _patrolTimer -= dt;
-        var speed = PatrolSpeed * dt;
+        var speed = _patrolSpeed * dt;
         var nx = PosX + _patrolDirX * speed;
         var ny = PosY + _patrolDirY * speed;
 

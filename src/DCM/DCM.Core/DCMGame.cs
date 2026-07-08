@@ -60,7 +60,11 @@ public class DCMGame : Game
             CreateCameraShutterSound());
 
         IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, () => CreatePlay(0), CreateSettings, _clickSound);
+            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateIntro, CreateSettings, _clickSound);
+
+        IGameScreen CreateIntro() =>
+            new IntroScreen(_spriteBatch, font, titleFont, GraphicsDevice, Content,
+                () => CreatePlay(0), CreateMenu, _clickSound);
 
         IGameScreen CreateSettings() =>
             new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound,

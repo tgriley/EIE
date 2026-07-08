@@ -13,8 +13,16 @@ namespace DCM.Core;
 
 public class DCMGame : Game
 {
+    // The whole game is drawn at this fixed logical resolution and then scaled
+    // up to the window, so all screen layout can assume a 1280x720 canvas.
+    public const int LogicalW = RaycasterRenderer.RW * 2;
+    public const int LogicalH = RaycasterRenderer.RH * 2;
+    private const int WindowW = 1920;
+    private const int WindowH = 1080;
+
     private readonly GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch = null!;
+    private RenderTarget2D _screen = null!;
     private IGameScreen _currentScreen = null!;
     private SoundEffect _clickSound = null!;
     private PlaySounds _playSounds = null!;
@@ -25,8 +33,8 @@ public class DCMGame : Game
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
-        _graphics.PreferredBackBufferWidth = RaycasterRenderer.RW * 2;
-        _graphics.PreferredBackBufferHeight = RaycasterRenderer.RH * 2;
+        _graphics.PreferredBackBufferWidth = WindowW;
+        _graphics.PreferredBackBufferHeight = WindowH;
         _graphics.ApplyChanges();
         Window.Title = "Find the Exit";
     }
@@ -46,6 +54,7 @@ public class DCMGame : Game
         }
 
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        _screen = new RenderTarget2D(GraphicsDevice, LogicalW, LogicalH);
         var font      = Content.Load<SpriteFont>("Fonts/Hud");
         var titleFont  = Content.Load<SpriteFont>("Fonts/MenuTitle");
         var titleFont2 = Content.Load<SpriteFont>("Fonts/MenuTitle2");
@@ -84,7 +93,7 @@ public class DCMGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        var mouse = Mouse.GetState();
+        var mouse = ToLogical(Mouse.GetState());
         var next = _currentScreen.Update(gameTime, mouse, _prevMouse);
 
         if (next == null)
@@ -106,14 +115,35 @@ public class DCMGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        GraphicsDevice.SetRenderTarget(_screen);
         GraphicsDevice.Clear(Color.Black);
         _currentScreen.Draw(gameTime);
+
+        GraphicsDevice.SetRenderTarget(null);
+        GraphicsDevice.Clear(Color.Black);
+        var pp = GraphicsDevice.PresentationParameters;
+        _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp);
+        _spriteBatch.Draw(_screen, new Rectangle(0, 0, pp.BackBufferWidth, pp.BackBufferHeight), Color.White);
+        _spriteBatch.End();
+
         base.Draw(gameTime);
+    }
+
+    // Map a raw window-space mouse position into the fixed logical canvas so
+    // every screen's hit-testing works regardless of window size.
+    private MouseState ToLogical(MouseState raw)
+    {
+        var pp = GraphicsDevice.PresentationParameters;
+        var lx = raw.X * LogicalW / pp.BackBufferWidth;
+        var ly = raw.Y * LogicalH / pp.BackBufferHeight;
+        return new MouseState(lx, ly, raw.ScrollWheelValue,
+            raw.LeftButton, raw.MiddleButton, raw.RightButton, raw.XButton1, raw.XButton2);
     }
 
     protected override void UnloadContent()
     {
         _currentScreen?.Dispose();
+        _screen?.Dispose();
         _clickSound?.Dispose();
         _playSounds?.Dispose();
         base.UnloadContent();

@@ -39,6 +39,8 @@ public class Map : IMap
     // Health pickup spawn (one per level, chosen randomly at startup)
     public readonly (int x, int y) PickupSpawn;
 
+    private static readonly Random _rng = new();
+
     public const int LevelCount = 10;
 
     public static Map GetLevel(int index)
@@ -96,12 +98,33 @@ public class Map : IMap
         EnemySpawns = enemySpawns;
         TorchPositions = torchPositions;
         TextureVariant = textureVariant;
+        RelocateExit();
         PickupSpawn = ChoosePickupSpawn();
+    }
+
+    // Move the exit to a random tile on the far walls (the bottom row and right
+    // column, opposite the top-left start) whose inner neighbour is open, so it
+    // is reachable but no longer always parked in the same corner.
+    private void RelocateExit()
+    {
+        var candidates = new System.Collections.Generic.List<(int x, int y)>();
+        for (var x = 1; x < Width - 1; x++)
+            if (_tiles[Height - 2, x] == Tile.Empty) candidates.Add((x, Height - 1));
+        for (var y = 1; y < Height - 1; y++)
+            if (_tiles[y, Width - 2] == Tile.Empty) candidates.Add((Width - 1, y));
+
+        if (candidates.Count == 0) return;
+
+        for (var y = 0; y < Height; y++)
+        for (var x = 0; x < Width; x++)
+            if (_tiles[y, x] == Tile.Exit) _tiles[y, x] = Tile.Wall1;
+
+        var (ex, ey) = candidates[_rng.Next(candidates.Count)];
+        _tiles[ey, ex] = Tile.Exit;
     }
 
     private (int x, int y) ChoosePickupSpawn()
     {
-        var rng = new Random();
         var startTileX = (int)StartX;
         var startTileY = (int)StartY;
 
@@ -119,7 +142,7 @@ public class Map : IMap
         }
 
         return candidates.Count > 0
-            ? candidates[rng.Next(candidates.Count)]
+            ? candidates[_rng.Next(candidates.Count)]
             : (startTileX + 4, startTileY);
     }
 

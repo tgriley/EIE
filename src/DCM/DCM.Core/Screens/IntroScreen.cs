@@ -16,8 +16,8 @@ public class IntroScreen : IGameScreen
     private const int SW = 1280;
     private const int SH = 720;
     private const int FrameCount = 6;
-    private const int ImmuneBox = 180;
-    private const int ImmuneBoxY = 400;
+    private const int ImmuneBox = 160;
+    private const int ImmuneBoxY = 440;
 
     private static readonly Color ColBg      = new(10, 8, 8);
     private static readonly Color ColTitle    = new(220, 60, 50);
@@ -130,7 +130,7 @@ public class IntroScreen : IGameScreen
         const string caption = "CAMERA-IMMUNE";
         var capSize = _painter.Measure(caption);
         _painter.DrawTextShadow(caption,
-            new Vector2((SW - capSize.X) / 2f, 600), ColWarn);
+            new Vector2((SW - capSize.X) / 2f, ImmuneBoxY + ImmuneBox + 16), ColWarn);
 
         _startButton.Draw(mousePos);
         _backButton.Draw(mousePos);

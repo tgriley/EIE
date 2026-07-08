@@ -19,6 +19,7 @@ namespace DCM.Core.Screens;
 
 public class PlayScreen : IGameScreen
 {
+    private readonly GraphicsDevice _gd;
     private readonly RaycasterRenderer _renderer;
     private readonly HUD _hud;
     private readonly Player _player;
@@ -57,6 +58,7 @@ public class PlayScreen : IGameScreen
         int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
         SoundEffect clickSound, PlaySounds sounds, int startHealth = 100)
     {
+        _gd            = gd;
         _levelIndex    = levelIndex;
         _map           = Map.GetLevel(levelIndex);
         _toLevelSelect = toLevelSelect;
@@ -112,7 +114,16 @@ public class PlayScreen : IGameScreen
         _hud = new HUD(sb, font, gd, clickSound);
         _fog = new FogOfWar(_map.Width, _map.Height);
 
-        Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
+        RecenterMouse();
+    }
+
+    // Park the OS cursor at the window centre. Screens receive mouse coords in
+    // logical space, so the window centre reads back as the logical centre
+    // (RW, RH) and the per-frame look delta stays zero when the mouse is still.
+    private void RecenterMouse()
+    {
+        var pp = _gd.PresentationParameters;
+        Mouse.SetPosition(pp.BackBufferWidth / 2, pp.BackBufferHeight / 2);
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -150,9 +161,10 @@ public class PlayScreen : IGameScreen
             var leftY  = Math.Abs(gp.ThumbSticks.Left.Y)  > StickDeadZone ? gp.ThumbSticks.Left.Y  : 0f;
             var rightX = Math.Abs(gp.ThumbSticks.Right.X) > StickDeadZone ? gp.ThumbSticks.Right.X : 0f;
 
-            var mouseDeltaX = _firstInputFrame ? 0 : mouse.X - RaycasterRenderer.RW;
+            var lookScale = _gd.PresentationParameters.BackBufferWidth / (float)DCMGame.LogicalW;
+            var mouseDeltaX = _firstInputFrame ? 0 : (int)((mouse.X - RaycasterRenderer.RW) * lookScale);
             _firstInputFrame = false;
-            Mouse.SetPosition(RaycasterRenderer.RW, RaycasterRenderer.RH);
+            RecenterMouse();
             mouseDeltaX += (int)(rightX * ControllerLookSens);
 
             var moving = kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.S) ||

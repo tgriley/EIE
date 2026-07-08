@@ -62,7 +62,19 @@ public class DCMGame : Game
         _playSounds = SoundSynth.CreatePlaySounds();
 
         IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateIntro, CreateSettings, _clickSound);
+            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateSettings, _clickSound);
+
+        // Each run gets a fresh base seed; stage N within a run is
+        // deterministic so a "next level" retry after death would rebuild the
+        // same map for the same run.
+        IGameScreen CreateEndlessRun() =>
+            CreateEndlessStage(0, Random.Shared.Next(), 100);
+
+        IGameScreen CreateEndlessStage(int stage, int runSeed, int health) =>
+            new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
+                stage, CreateMenu, h => CreateEndlessStage(stage + 1, runSeed, h),
+                _clickSound, _playSounds, health,
+                MapGenerator.Generate(stage, runSeed + stage), endless: true);
 
         IGameScreen CreateIntro() =>
             new IntroScreen(_spriteBatch, font, titleFont, GraphicsDevice, Content,

@@ -31,6 +31,7 @@ public class PlayScreen : IGameScreen
     private readonly PlaySounds _sounds;
     private readonly FogOfWar _fog;
     private readonly bool _hasNextLevel;
+    private readonly bool _endless;
     private readonly int _levelIndex;
 
     private bool _gameOver;
@@ -56,11 +57,13 @@ public class PlayScreen : IGameScreen
 
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
         int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
-        SoundEffect clickSound, PlaySounds sounds, int startHealth = 100)
+        SoundEffect clickSound, PlaySounds sounds, int startHealth = 100,
+        Map? map = null, bool endless = false)
     {
         _gd            = gd;
         _levelIndex    = levelIndex;
-        _map           = Map.GetLevel(levelIndex);
+        _endless       = endless;
+        _map           = map ?? Map.GetLevel(levelIndex);
         _toLevelSelect = toLevelSelect;
         _toNextLevel   = toNextLevel;
         _hasNextLevel  = toNextLevel != null;
@@ -223,10 +226,13 @@ public class PlayScreen : IGameScreen
             {
                 _won = true;
                 _sounds.Win.Play();
-                var prevBest = LevelProgress.GetBestTime(_levelIndex);
-                LevelProgress.RecordTime(_levelIndex, _elapsed);
-                _isNewBest = _elapsed < prevBest || prevBest >= float.MaxValue;
-                if (_hasNextLevel) LevelProgress.Unlock(_levelIndex + 1);
+                if (!_endless)
+                {
+                    var prevBest = LevelProgress.GetBestTime(_levelIndex);
+                    LevelProgress.RecordTime(_levelIndex, _elapsed);
+                    _isNewBest = _elapsed < prevBest || prevBest >= float.MaxValue;
+                    if (_hasNextLevel) LevelProgress.Unlock(_levelIndex + 1);
+                }
             }
         }
 
@@ -238,7 +244,7 @@ public class PlayScreen : IGameScreen
     {
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
-            _elapsed, LevelProgress.GetBestTime(_levelIndex), _isNewBest,
+            _elapsed, _endless ? float.MaxValue : LevelProgress.GetBestTime(_levelIndex), _isNewBest,
             _cameraCooldown, CameraUseDuration, _player.SprintStamina, _fog);
     }
 

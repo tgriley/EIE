@@ -10,6 +10,7 @@ public enum MenuAction
 {
     None,
     Start,
+    Endless,
     Settings,
     Exit
 }
@@ -18,7 +19,7 @@ public class MainMenu : IDisposable
 {
     private readonly UIPainter _painter;
     private readonly SoundEffect _clickSound;
-    private readonly MenuNavigator _nav = new(3);
+    private readonly MenuNavigator _nav = new(4);
 
     private const int SW = 1280;
     private const int SH = 720;
@@ -28,6 +29,7 @@ public class MainMenu : IDisposable
     private readonly SpriteFont _titleFont;
     private readonly SpriteFont _titleFont2;
     private readonly Button _startButton;
+    private readonly Button _endlessButton;
     private readonly Button _settingsButton;
     private readonly Button _exitButton;
 
@@ -40,8 +42,9 @@ public class MainMenu : IDisposable
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _startButton    = new Button(new Rectangle(btnX, SH / 2 + 20,  btnW, btnH), "START",    _painter);
-        _settingsButton = new Button(new Rectangle(btnX, SH / 2 + 90,  btnW, btnH), "SETTINGS", _painter);
-        _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), "EXIT",     _painter);
+        _endlessButton  = new Button(new Rectangle(btnX, SH / 2 + 90,  btnW, btnH), "ENDLESS",  _painter);
+        _settingsButton = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), "SETTINGS", _painter);
+        _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 230, btnW, btnH), "EXIT",     _painter);
     }
 
     public MenuAction Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -49,6 +52,7 @@ public class MainMenu : IDisposable
         _nav.Update(gameTime);
 
         if (_startButton.IsClicked(mouse, prevMouse))    { _clickSound.Play(); return MenuAction.Start; }
+        if (_endlessButton.IsClicked(mouse, prevMouse))  { _clickSound.Play(); return MenuAction.Endless; }
         if (_settingsButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return MenuAction.Settings; }
         if (_exitButton.IsClicked(mouse, prevMouse))     { _clickSound.Play(); return MenuAction.Exit; }
 
@@ -58,7 +62,8 @@ public class MainMenu : IDisposable
             return _nav.SelectedIndex switch
             {
                 0 => MenuAction.Start,
-                1 => MenuAction.Settings,
+                1 => MenuAction.Endless,
+                2 => MenuAction.Settings,
                 _ => MenuAction.Exit
             };
         }
@@ -88,8 +93,9 @@ public class MainMenu : IDisposable
             Color.Red);
 
         _startButton.Draw(mousePos,    _nav.IsSelected(0));
-        _settingsButton.Draw(mousePos, _nav.IsSelected(1));
-        _exitButton.Draw(mousePos,     _nav.IsSelected(2));
+        _endlessButton.Draw(mousePos,  _nav.IsSelected(1));
+        _settingsButton.Draw(mousePos, _nav.IsSelected(2));
+        _exitButton.Draw(mousePos,     _nav.IsSelected(3));
 
         _painter.End();
     }

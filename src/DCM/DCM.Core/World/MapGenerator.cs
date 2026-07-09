@@ -209,13 +209,16 @@ public static class MapGenerator
         var sensitive = Math.Min(5, (total - 1) / 2);
         var immune    = total - sensitive;
 
+        // Nothing spawns inside the enemy aggro radius of the player start, so
+        // a level never opens with an instant chase.
+        var minDistSq = Entities.Enemy.ChaseRange * Entities.Enemy.ChaseRange;
         var candidates = new List<(int x, int y)>();
         for (var y = 1; y < size - 1; y++)
         for (var x = 1; x < size - 1; x++)
         {
             if (tiles[y, x] != Tile.Empty) continue;
             var dx = x - start.x; var dy = y - start.y;
-            if (dx * dx + dy * dy < 16) continue;
+            if (dx * dx + dy * dy < minDistSq) continue;
             candidates.Add((x, y));
         }
         if (candidates.Count < total) return null;

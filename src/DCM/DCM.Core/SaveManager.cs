@@ -33,8 +33,9 @@ public static class SaveManager
             Directory.CreateDirectory(Path.GetDirectoryName(SavePath)!);
             var data = new SaveData
             {
-                UnlockedLevels = LevelProgress.GetUnlockedLevels(),
-                BestTimes      = LevelProgress.GetBestTimes(),
+                UnlockedLevels   = LevelProgress.GetUnlockedLevels(),
+                BestTimes        = LevelProgress.GetBestTimes(),
+                BestEndlessStage = LevelProgress.BestEndlessStage,
                 MuteSound      = GameSettings.MuteSound,
                 IsFullscreen   = GameSettings.IsFullscreen,
             };

@@ -62,7 +62,10 @@ public class DCMGame : Game
         _playSounds = SoundSynth.CreatePlaySounds();
 
         IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateSettings, _clickSound);
+            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateModeSelect, CreateSettings, _clickSound);
+
+        IGameScreen CreateModeSelect() =>
+            new ModeSelectScreen(_spriteBatch, font, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateMenu, _clickSound);
 
         // Each run gets a fresh base seed; stage N within a run is
         // deterministic so a "next level" retry after death would rebuild the

@@ -13,7 +13,24 @@ public static class LevelProgress
         System.Array.Fill(_bestTimes, float.MaxValue);
     }
 
+    public static int BestEndlessStage { get; private set; }
+
     public static bool IsUnlocked(int levelIndex) => _unlocked.Contains(levelIndex);
+
+    public static int MaxUnlockedLevel()
+    {
+        var max = 0;
+        foreach (var l in _unlocked)
+            if (l > max) max = l;
+        return max;
+    }
+
+    public static void RecordEndlessStage(int stagesCompleted)
+    {
+        if (stagesCompleted <= BestEndlessStage) return;
+        BestEndlessStage = stagesCompleted;
+        SaveManager.Save();
+    }
 
     public static void Unlock(int levelIndex)
     {
@@ -50,6 +67,7 @@ public static class LevelProgress
         _unlocked.Clear();
         _unlocked.Add(0);
         System.Array.Fill(_bestTimes, float.MaxValue);
+        BestEndlessStage = 0;
         SaveManager.Save();
     }
 
@@ -66,5 +84,7 @@ public static class LevelProgress
 
         for (var i = 0; i < _bestTimes.Length && i < data.BestTimes.Length; i++)
             _bestTimes[i] = data.BestTimes[i];
+
+        BestEndlessStage = System.Math.Max(0, data.BestEndlessStage);
     }
 }

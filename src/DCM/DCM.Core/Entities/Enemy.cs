@@ -48,7 +48,8 @@ public class Enemy : IBillboard
     private double _patrolDirX = 1;
     private double _patrolDirY = 0;
 
-    private const double ChaseRange = 8.0;
+    public const double ChaseRange = 8.0;
+
     private const double AttackRange = 0.9;
     private const double MoveSpeed = 1.5;
     private const double PatrolSpeed = 0.8;

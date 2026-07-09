@@ -226,7 +226,11 @@ public class PlayScreen : IGameScreen
             {
                 _won = true;
                 _sounds.Win.Play();
-                if (!_endless)
+                if (_endless)
+                {
+                    LevelProgress.RecordEndlessStage(_levelIndex + 1);
+                }
+                else
                 {
                     var prevBest = LevelProgress.GetBestTime(_levelIndex);
                     LevelProgress.RecordTime(_levelIndex, _elapsed);

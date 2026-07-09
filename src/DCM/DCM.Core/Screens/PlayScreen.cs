@@ -30,6 +30,8 @@ public class PlayScreen : IGameScreen
     private readonly Func<int, IGameScreen>? _toNextLevel;
     private readonly PlaySounds _sounds;
     private readonly FogOfWar _fog;
+    private readonly PlayerBuffs _buffs;
+    private readonly float _cameraUseDuration;
     private readonly bool _hasNextLevel;
     private readonly bool _endless;
     private readonly int _levelIndex;
@@ -50,7 +52,6 @@ public class PlayScreen : IGameScreen
     private const float StickDeadZone    = 0.20f;
     private const float TriggerThreshold = 0.50f;
     private const int   ControllerLookSens = 50;
-    private const float CameraUseDuration = 5f;
     private const float CameraRaiseTime   = 0.4f;
 
     public bool IsMouseVisible => _paused || _gameOver || _won;
@@ -58,7 +59,7 @@ public class PlayScreen : IGameScreen
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
         int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
         SoundEffect clickSound, PlaySounds sounds, int startHealth = 100,
-        Map? map = null, bool endless = false)
+        Map? map = null, bool endless = false, PlayerBuffs? buffs = null)
     {
         _gd            = gd;
         _levelIndex    = levelIndex;
@@ -68,6 +69,8 @@ public class PlayScreen : IGameScreen
         _toNextLevel   = toNextLevel;
         _hasNextLevel  = toNextLevel != null;
         _sounds        = sounds;
+        _buffs         = buffs ?? new PlayerBuffs();
+        _cameraUseDuration = _buffs.CameraCooldown;
 
         var sheets     = new EnemySpriteSheet[EnemyCatalog.SpriteCount];
         var hideSheets = new EnemySpriteSheet[EnemyCatalog.HideSpriteCount];
@@ -82,7 +85,7 @@ public class PlayScreen : IGameScreen
             hideSheets[i] = new EnemySpriteSheet(pix, w, h, 6);
         }
 
-        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, startHealth);
+        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, startHealth, _buffs);
         _player.OnDamaged = () => _sounds.PlayerOuch.Play();
         _player.OnDied    = () => _sounds.PlayerDeath.Play();
 
@@ -94,7 +97,8 @@ public class PlayScreen : IGameScreen
             if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
             var si = spawn.type % EnemyCatalog.SpriteCount;
             var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si % hideSheets.Length],
-                cameraImmune: EnemyCatalog.IsCameraImmune(spawn.type));
+                cameraImmune: EnemyCatalog.IsCameraImmune(spawn.type),
+                stunDuration: _buffs.StunDuration);
             enemy.OnHurt = () => _sounds.EnemyOuch.Play();
             enemy.OnDied = () => _sounds.EnemyDeath.Play();
             _enemies.Add(enemy);
@@ -113,9 +117,9 @@ public class PlayScreen : IGameScreen
             doorPix,  doorW,  doorH,
             floorPix, floorW, floorH,
             ceilPix,  ceilW,  ceilH,
-            weaponTex);
-        _hud = new HUD(sb, font, gd, clickSound);
-        _fog = new FogOfWar(_map.Width, _map.Height);
+            weaponTex, _buffs.SightRange);
+        _hud = new HUD(sb, font, gd, clickSound, _buffs);
+        _fog = new FogOfWar(_map.Width, _map.Height, _buffs.MinimapReveal);
 
         RecenterMouse();
     }
@@ -210,7 +214,7 @@ public class PlayScreen : IGameScreen
             if (cameraReady && shootJustPressed)
             {
                 _renderer.MuzzleFlash = 1f;
-                _cameraCooldown = CameraUseDuration;
+                _cameraCooldown = _cameraUseDuration;
                 _cameraFired = true;
                 _cameraRaiseTimer = 0f;
                 flashJustFired = true;
@@ -249,7 +253,7 @@ public class PlayScreen : IGameScreen
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
             _elapsed, _endless ? float.MaxValue : LevelProgress.GetBestTime(_levelIndex), _isNewBest,
-            _cameraCooldown, CameraUseDuration, _player.SprintStamina, _fog);
+            _cameraCooldown, _cameraUseDuration, _player.SprintStamina, _fog);
     }
 
     private static (Color[] pixels, int width, int height) LoadPixels(ContentManager content, string name)

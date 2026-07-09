@@ -49,7 +49,7 @@ public class RaycasterRenderer : IDisposable
 
     // Fog: beyond this perpDist everything is pitch black
     private const double FogStart = 1.5;
-    private const double FogEnd = 9.0;
+    private readonly double _fogEnd;
 
     // Screen-space target (draw scaled frame buffer here)
     private Rectangle _destRect;
@@ -69,10 +69,11 @@ public class RaycasterRenderer : IDisposable
         Color[] doorTexPix, int doorTexW, int doorTexH,
         Color[] floorTexPix, int floorTexW, int floorTexH,
         Color[] ceilTexPix, int ceilTexW, int ceilTexH,
-        Texture2D? weaponTex = null)
+        Texture2D? weaponTex = null, double fogEnd = 9.0)
     {
         _gd = gd;
         _sb = new SpriteBatch(gd);
+        _fogEnd = fogEnd;
 
         _wallTexPix = wallTexPix;
         _wallTexW = wallTexW;
@@ -155,7 +156,7 @@ public class RaycasterRenderer : IDisposable
             var floorX = camera.PosX + rowDist * rayDirX0;
             var floorY = camera.PosY + rowDist * rayDirY0;
 
-            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (FogEnd - FogStart), 0, 1);
+            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (_fogEnd - FogStart), 0, 1);
 
             var rowOff = y * RW;
             for (var x = 0; x < RW; x++)
@@ -198,7 +199,7 @@ public class RaycasterRenderer : IDisposable
             var floorX = camera.PosX + rowDist * rayDirX0;
             var floorY = camera.PosY + rowDist * rayDirY0;
 
-            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (FogEnd - FogStart), 0, 1);
+            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (_fogEnd - FogStart), 0, 1);
 
             var rowOff = y * RW;
             for (var x = 0; x < RW; x++)
@@ -279,7 +280,7 @@ public class RaycasterRenderer : IDisposable
                 texX = texSzW - texX - 1;
             texX = Math.Clamp(texX, 0, texSzW - 1);
 
-            var fog = (float)Math.Clamp(1.0 - (perpDist - FogStart) / (FogEnd - FogStart), 0, 1);
+            var fog = (float)Math.Clamp(1.0 - (perpDist - FogStart) / (_fogEnd - FogStart), 0, 1);
             var sideFactor = side == 0 ? 1.0f : 0.6f;
             var bright = fog * sideFactor;
             var warmth = (float)Math.Clamp(0.3 - perpDist * 0.04, 0, 0.3f);
@@ -340,7 +341,7 @@ public class RaycasterRenderer : IDisposable
         var drawLeft = screenX - screenW / 2;
         var drawRight = screenX + screenW / 2;
 
-        var fog    = (float)Math.Clamp(1.0 - (transY - FogStart) / (FogEnd - FogStart), 0, 1);
+        var fog    = (float)Math.Clamp(1.0 - (transY - FogStart) / (_fogEnd - FogStart), 0, 1);
         var warmth = (float)Math.Clamp(0.3 - transY * 0.04, 0, 0.3f);
 
         for (var col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
@@ -373,6 +374,66 @@ public class RaycasterRenderer : IDisposable
             }
         }
 
+        if (b.OverheadCountdown is { } seconds && seconds > 0)
+            DrawCountdown(screenX, drawTopY, screenH, transY, seconds);
+    }
+
+    // 3x5 digit glyphs, row-major, '1' = lit pixel
+    private static readonly string[] DigitGlyphs =
+    {
+        "111101101101111",
+        "010110010010111",
+        "111001111100111",
+        "111001111001111",
+        "101101111001001",
+        "111100111001111",
+        "111100111101111",
+        "111001010010010",
+        "111101111101111",
+        "111101111001111"
+    };
+
+    private static readonly Color ColCountdown       = new(255, 230, 80);
+    private static readonly Color ColCountdownShadow = new(0, 0, 0);
+
+    // Remaining stun seconds drawn just above the sprite's head, scaled with
+    // distance and depth-tested per column so walls occlude it.
+    private void DrawCountdown(int screenX, int topY, int screenH, double transY, float seconds)
+    {
+        var text = ((int)Math.Ceiling(seconds)).ToString();
+        var px = Math.Max(1, screenH / 40);
+        int glyphW = 3 * px, glyphH = 5 * px, gap = px;
+        var totalW = text.Length * glyphW + (text.Length - 1) * gap;
+        var x0 = screenX - totalW / 2;
+        var y0 = topY - glyphH - 2 * px;
+
+        foreach (var ch in text)
+        {
+            var rows = DigitGlyphs[ch - '0'];
+            for (var gy = 0; gy < 5; gy++)
+            for (var gx = 0; gx < 3; gx++)
+            {
+                if (rows[gy * 3 + gx] == '0') continue;
+                FillDigitPixel(x0 + gx * px + 1, y0 + gy * px + 1, px, transY, ColCountdownShadow);
+                FillDigitPixel(x0 + gx * px, y0 + gy * px, px, transY, ColCountdown);
+            }
+            x0 += glyphW + gap;
+        }
+    }
+
+    private void FillDigitPixel(int x0, int y0, int size, double transY, Color c)
+    {
+        for (var dy = 0; dy < size; dy++)
+        {
+            var y = y0 + dy;
+            if ((uint)y >= RH) continue;
+            for (var dx = 0; dx < size; dx++)
+            {
+                var x = x0 + dx;
+                if ((uint)x >= RW || _zBuf[x] < transY) continue;
+                _fb[y * RW + x] = c;
+            }
+        }
     }
 
     // ── Weapon sprite ─────────────────────────────────────────────────────

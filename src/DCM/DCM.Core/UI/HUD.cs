@@ -52,19 +52,29 @@ public class HUD : IDisposable
     private readonly StatusBarPanel _healthBar;
     private readonly StatusBarPanel _sprintBar;
     private readonly StatusBarPanel _cameraBar;
+    private readonly PlayerBuffs _buffs;
 
     private float _controlsTimer = 12f;
 
-    public HUD(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound)
+    public HUD(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, SoundEffect clickSound,
+        PlayerBuffs? buffs = null)
     {
         _painter    = new UIPainter(sb, font, gd);
         _clickSound = clickSound;
+        _buffs      = buffs ?? new PlayerBuffs();
+
+        // Bar widths scale with the buffed stat so upgrades are visible on the
+        // HUD: bigger health/stamina pools widen, a faster flash cooldown narrows.
+        const int baseBarW = 160;
+        var healthW = (int)(baseBarW * (float)_buffs.MaxHealth / PlayerBuffs.BaseHealth);
+        var sprintW = (int)(baseBarW * _buffs.MaxStamina / PlayerBuffs.BaseStamina);
+        var cameraW = (int)(baseBarW * _buffs.CameraCooldown / PlayerBuffs.BaseCooldown);
 
         const int barX = 12, panelH = 50, gap = 6, step = panelH + gap;
         int yCamera = SH - 60, ySprint = yCamera - step, yHealth = ySprint - step;
-        _healthBar = new(barX, yHealth, "HEALTH", new(220, 50, 40),  new(180, 20, 20));
-        _sprintBar = new(barX, ySprint, "SPRINT", new(220, 200, 50), new(100, 90, 25));
-        _cameraBar = new(barX, yCamera, "FLASH",  new(80, 200, 220), new(50, 110, 150));
+        _healthBar = new(barX, yHealth, "HEALTH", new(220, 50, 40),  new(180, 20, 20),  healthW);
+        _sprintBar = new(barX, ySprint, "SPRINT", new(220, 200, 50), new(100, 90, 25),  sprintW);
+        _cameraBar = new(barX, yCamera, "FLASH",  new(80, 200, 220), new(50, 110, 150), cameraW);
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
         _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",       _painter);
@@ -138,9 +148,9 @@ public class HUD : IDisposable
         else
         {
             DrawMinimap(player, enemies, map, fog);
-            _healthBar.Draw(_painter, player.Health / 100f, player.Health.ToString(), 0.5f);
-            _sprintBar.Draw(_painter, sprintStamina,
-                sprintStamina >= 1f ? "READY" : $"{sprintStamina:F1}s");
+            _healthBar.Draw(_painter, player.Health / (float)_buffs.MaxHealth, player.Health.ToString(), 0.5f);
+            _sprintBar.Draw(_painter, sprintStamina / _buffs.MaxStamina,
+                sprintStamina >= _buffs.MaxStamina ? "READY" : $"{sprintStamina:F1}s");
             var chargeFrac = cameraMaxCooldown > 0 ? 1f - cameraCooldown / cameraMaxCooldown : 1f;
             _cameraBar.Draw(_painter, chargeFrac,
                 chargeFrac >= 1f ? "READY" : $"{cameraCooldown:F1}s");

@@ -54,20 +54,21 @@ public class Enemy : IBillboard
     private const double MoveSpeed = 1.5;
     private const double PatrolSpeed = 0.8;
     private const double CameraImmuneSpeedFactor = 0.55;
-    private const float DazeDuration = 5f;
 
     private readonly double _moveSpeed;
     private readonly double _patrolSpeed;
+    private readonly float _stunDuration;
 
     private static readonly Random _rng = new();
 
-    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet, bool cameraImmune = false)
+    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet, bool cameraImmune = false, float stunDuration = 5f)
     {
         PosX = tileX + 0.5;
         PosY = tileY + 0.5;
         SpriteSheet = spriteSheet;
         HideSpriteSheet = hideSpriteSheet;
         CameraImmune = cameraImmune;
+        _stunDuration = stunDuration;
         var speedFactor = cameraImmune ? CameraImmuneSpeedFactor : 1.0;
         _moveSpeed   = MoveSpeed * speedFactor;
         _patrolSpeed = PatrolSpeed * speedFactor;
@@ -100,14 +101,14 @@ public class Enemy : IBillboard
                 DoPatrol(dt, map, target, others);
                 if (dist < ChaseRange && HasLineOfSight(target, map))
                 {
-                    if (dazed)       { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                    if (dazed)       { State = EnemyState.Dazed; _dazeTimer = _stunDuration; AnimFrame = 0; }
                     else if (scared) { State = EnemyState.Flee; }
                     else               State = EnemyState.Chase;
                 }
                 break;
 
             case EnemyState.Chase:
-                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = _stunDuration; AnimFrame = 0; }
                 else if (scared)                  { State = EnemyState.Flee; }
                 else if (dist < AttackRange)        State = EnemyState.Attack;
                 else if (dist > ChaseRange * 1.5)   State = EnemyState.Patrol;
@@ -115,7 +116,7 @@ public class Enemy : IBillboard
                 break;
 
             case EnemyState.Attack:
-                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                if (dazed)                        { State = EnemyState.Dazed; _dazeTimer = _stunDuration; AnimFrame = 0; }
                 else if (scared)                  { State = EnemyState.Flee; }
                 else if (dist > AttackRange * 1.2)  State = EnemyState.Chase;
                 else if (_attackCooldown <= 0)
@@ -126,13 +127,13 @@ public class Enemy : IBillboard
                 break;
 
             case EnemyState.Flee:
-                if (dazed)        { State = EnemyState.Dazed; _dazeTimer = DazeDuration; AnimFrame = 0; }
+                if (dazed)        { State = EnemyState.Dazed; _dazeTimer = _stunDuration; AnimFrame = 0; }
                 else if (!scared)   State = dist < ChaseRange && HasLineOfSight(target, map) ? EnemyState.Chase : EnemyState.Patrol;
                 else if (dist > 0.01) MoveToward(-dx / dist, -dy / dist, _moveSpeed * dt, map, target, others);
                 break;
 
             case EnemyState.Dazed:
-                if (dazed) { _dazeTimer = DazeDuration; AnimFrame = 0; }
+                if (dazed) { _dazeTimer = _stunDuration; AnimFrame = 0; }
                 else if (_dazeTimer <= 0) State = EnemyState.Patrol;
                 break;
         }
@@ -179,6 +180,7 @@ public class Enemy : IBillboard
     int             IBillboard.HeightDivisor => 1;
     double          IBillboard.VerticalShift => 0.0;
     (int, int)?     IBillboard.HealthBar     => (Health, MaxHealth);
+    float?          IBillboard.OverheadCountdown => State == EnemyState.Dazed ? _dazeTimer : null;
 
     // ── Private helpers ──────────────────────────────────────────────────────
 

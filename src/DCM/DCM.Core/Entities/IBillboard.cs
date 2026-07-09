@@ -19,4 +19,6 @@ public interface IBillboard
     double VerticalShift  { get; }  // fraction of screenH to shift down from horizon-centre
 
     (int current, int max)? HealthBar { get; }  // null = no bar
+
+    float? OverheadCountdown { get; }  // seconds shown above the sprite; null = none
 }

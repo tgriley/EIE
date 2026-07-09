@@ -16,6 +16,7 @@ public class Player : ICamera, IDamageable, IHealable
     public double PlaneY { get; private set; }
 
     public int Health { get; private set; } = 100;
+    public int MaxHealth => _buffs.MaxHealth;
     public bool IsDead => Health <= 0;
     public float HurtTimer { get; private set; } = 0f;
     public bool ReachedExit { get; private set; }
@@ -25,24 +26,25 @@ public class Player : ICamera, IDamageable, IHealable
     public Action? OnDied    { get; set; }
 
     private float _damageCooldown = 0f;
+    private readonly PlayerBuffs _buffs;
 
-    public float SprintStamina { get; private set; } = 1f;
+    public float SprintStamina { get; private set; }
+    public float SprintMax => _buffs.MaxStamina;
     private bool _sprintDepleted;
 
     public const double CollisionRadius = 0.35;
 
     private const double MoveSpeed = 2.8;
-    private const double RunSpeed = 4.5;
     private const double TurnSpeed = 2.0;
     private const double MouseSens = 0.0015;
-    private const float SprintMax        = 1f;
-    private const float SprintRecharge   = 1f / 5f;
 
-    public Player(double posX, double posY, double angle, int startHealth = 100)
+    public Player(double posX, double posY, double angle, int startHealth = 100, PlayerBuffs? buffs = null)
     {
+        _buffs = buffs ?? new PlayerBuffs();
         PosX = posX;
         PosY = posY;
-        Health = Math.Clamp(startHealth, 1, 100);
+        Health = Math.Clamp(startHealth, 1, _buffs.MaxHealth);
+        SprintStamina = _buffs.MaxStamina;
         SetAngle(angle);
     }
 
@@ -71,7 +73,7 @@ public class Player : ICamera, IDamageable, IHealable
         if (_damageCooldown > 0) _damageCooldown -= dt;
 
         var isSprinting = input.Running && !_sprintDepleted;
-        var baseSpeed = isSprinting ? RunSpeed : MoveSpeed;
+        var baseSpeed = isSprinting ? _buffs.RunSpeed : MoveSpeed;
         var speed = baseSpeed * (input.CameraRaising ? 0.5 : 1.0) * dt;
         const double margin = 0.25;
 
@@ -114,13 +116,13 @@ public class Player : ICamera, IDamageable, IHealable
         var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
         if (isSprinting && isMoving)
         {
-            SprintStamina = Math.Max(0f, SprintStamina - dt / SprintMax);
+            SprintStamina = Math.Max(0f, SprintStamina - dt);
             if (SprintStamina <= 0f) _sprintDepleted = true;
         }
         else
         {
-            SprintStamina = Math.Min(1f, SprintStamina + dt * SprintRecharge);
-            if (_sprintDepleted && SprintStamina >= 0.25f) _sprintDepleted = false;
+            SprintStamina = Math.Min(SprintMax, SprintStamina + dt * _buffs.StaminaRegen);
+            if (_sprintDepleted && SprintStamina >= 0.25f * SprintMax) _sprintDepleted = false;
         }
 
         ReachedExit = map.IsExit((int)PosX, (int)PosY);
@@ -158,7 +160,7 @@ public class Player : ICamera, IDamageable, IHealable
 
     public void Heal(int amount)
     {
-        Health = Math.Min(100, Health + amount);
+        Health = Math.Min(_buffs.MaxHealth, Health + amount);
     }
 
     private static Enemy? TouchingEnemy(double x, double y, IReadOnlyList<Enemy>? enemies)

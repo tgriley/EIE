@@ -1,5 +1,6 @@
 #nullable enable
 using DCM.Core.Audio;
+using DCM.Core.Entities;
 using DCM.Core.Rendering;
 using DCM.Core.Screens;
 using DCM.Core.World;
@@ -71,13 +72,17 @@ public class DCMGame : Game
         // deterministic so a "next level" retry after death would rebuild the
         // same map for the same run.
         IGameScreen CreateEndlessRun() =>
-            CreateEndlessStage(0, Random.Shared.Next(), 100);
+            CreateEndlessStage(0, Random.Shared.Next(), 100, new PlayerBuffs());
 
-        IGameScreen CreateEndlessStage(int stage, int runSeed, int health) =>
+        // Completing a stage goes through a buff pick before the next stage;
+        // the shared PlayerBuffs accumulates for the whole run.
+        IGameScreen CreateEndlessStage(int stage, int runSeed, int health, PlayerBuffs buffs) =>
             new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                stage, CreateMenu, h => CreateEndlessStage(stage + 1, runSeed, h),
+                stage, CreateMenu,
+                h => new BuffSelectScreen(_spriteBatch, font, GraphicsDevice, buffs, h,
+                    h2 => CreateEndlessStage(stage + 1, runSeed, h2, buffs), _clickSound),
                 _clickSound, _playSounds, health,
-                MapGenerator.Generate(stage, runSeed + stage), endless: true);
+                MapGenerator.Generate(stage, runSeed + stage), endless: true, buffs: buffs);
 
         IGameScreen CreateIntro() =>
             new IntroScreen(_spriteBatch, font, titleFont, GraphicsDevice, Content,
@@ -94,13 +99,15 @@ public class DCMGame : Game
                 },
                 LevelProgress.Reset);
 
-        IGameScreen CreatePlay(int levelIndex, int startHealth = 100)
+        IGameScreen CreatePlay(int levelIndex, int startHealth = 100, PlayerBuffs? buffs = null)
         {
+            var runBuffs = buffs ?? new PlayerBuffs();
             Func<int, IGameScreen>? nextLevel = levelIndex < Map.LevelCount - 1
-                ? health => CreatePlay(levelIndex + 1, health)
+                ? health => new BuffSelectScreen(_spriteBatch, font, GraphicsDevice, runBuffs, health,
+                    h => CreatePlay(levelIndex + 1, h, runBuffs), _clickSound)
                 : null;
             return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth);
+                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth, buffs: runBuffs);
         }
 
         _currentScreen = CreateMenu();

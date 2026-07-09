@@ -7,15 +7,16 @@ public class FogOfWar
     private readonly bool[,] _seen;
     private readonly int _width;
     private readonly int _height;
+    private readonly double _revealDist;
 
-    private const double MaxRevealDist = 10.0;
-    private const int    RayCount      = 360;
+    private const int RayCount = 360;
 
-    public FogOfWar(int width, int height)
+    public FogOfWar(int width, int height, double revealDist = 10.0)
     {
-        _width  = width;
-        _height = height;
-        _seen   = new bool[width, height];
+        _width      = width;
+        _height     = height;
+        _revealDist = revealDist;
+        _seen       = new bool[width, height];
     }
 
     public bool IsSeen(int tx, int ty)
@@ -47,13 +48,13 @@ public class FogOfWar
 
             if (sdx < sdy)
             {
-                if (sdx >= MaxRevealDist) break;
+                if (sdx >= _revealDist) break;
                 sdx += ddx;
                 mx  += stepX;
             }
             else
             {
-                if (sdy >= MaxRevealDist) break;
+                if (sdy >= _revealDist) break;
                 sdy += ddy;
                 my  += stepY;
             }

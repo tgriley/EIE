@@ -40,6 +40,7 @@ public class HealthPickup : IPickup
     int         IBillboard.HeightDivisor => 2;
     double      IBillboard.VerticalShift => 0.5;
     (int, int)? IBillboard.HealthBar     => null;
+    float?      IBillboard.OverheadCountdown => null;
 
     private static Color[] GeneratePixels()
     {

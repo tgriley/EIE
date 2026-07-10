@@ -36,7 +36,8 @@ public class BuffSelectScreen : IGameScreen
     private readonly SoundEffect _clickSound;
     private readonly BuffType[] _choices;
     private readonly Rectangle[] _cards;
-    private readonly MenuNavigator _nav = new(ChoiceCount, ChoiceCount);
+    private readonly Button _skipButton;
+    private readonly MenuNavigator _nav = new(ChoiceCount + 1, ChoiceCount);
     private int _health;
     private Point _mousePos;
 
@@ -57,6 +58,8 @@ public class BuffSelectScreen : IGameScreen
         _cards = new Rectangle[ChoiceCount];
         for (var i = 0; i < ChoiceCount; i++)
             _cards[i] = new Rectangle(x0 + i * (cardW + gap), 160, cardW, cardH);
+
+        _skipButton = new Button(new Rectangle((SW - 180) / 2, 337, 180, 38), "SKIP", _painter);
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -64,7 +67,10 @@ public class BuffSelectScreen : IGameScreen
         _nav.Update(gameTime);
         _mousePos = mouse.Position;
 
-        if (_nav.JustConfirmed) return Pick(_choices[_nav.SelectedIndex]);
+        if (_nav.JustConfirmed)
+            return _nav.SelectedIndex == ChoiceCount ? Skip() : Pick(_choices[_nav.SelectedIndex]);
+
+        if (_skipButton.IsClicked(mouse, prevMouse)) return Skip();
 
         var released = mouse.LeftButton == ButtonState.Released &&
                        prevMouse.LeftButton == ButtonState.Pressed;
@@ -74,6 +80,12 @@ public class BuffSelectScreen : IGameScreen
                     return Pick(_choices[i]);
 
         return this;
+    }
+
+    private IGameScreen Skip()
+    {
+        _clickSound.Play();
+        return _onContinue(_health);
     }
 
     private IGameScreen Pick(BuffType type)
@@ -95,6 +107,8 @@ public class BuffSelectScreen : IGameScreen
         DrawCentered("CHOOSE A BUFF", 104, ColText, 0.9f);
 
         for (var i = 0; i < ChoiceCount; i++) DrawCard(i);
+
+        _skipButton.Draw(_mousePos, _nav.IsSelected(ChoiceCount));
 
         DrawStatsPanel();
 

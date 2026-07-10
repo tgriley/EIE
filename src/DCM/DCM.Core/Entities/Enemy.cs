@@ -61,7 +61,7 @@ public class Enemy : IBillboard
 
     private static readonly Random _rng = new();
 
-    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet, bool cameraImmune = false, float stunDuration = 5f)
+    public Enemy(int tileX, int tileY, EnemySpriteSheet spriteSheet, EnemySpriteSheet hideSpriteSheet, bool cameraImmune = false, float stunDuration = 3f)
     {
         PosX = tileX + 0.5;
         PosY = tileY + 0.5;

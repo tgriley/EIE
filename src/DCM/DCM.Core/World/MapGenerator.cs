@@ -205,10 +205,6 @@ public static class MapGenerator
     private static (int x, int y, int type)[]? PlaceEnemies(int[,] tiles, Random rng,
         int size, (int x, int y) start, int stage)
     {
-        var total     = Math.Min(3 + stage, 15);
-        var sensitive = Math.Min(5, (total - 1) / 2);
-        var immune    = total - sensitive;
-
         // Nothing spawns inside the enemy aggro radius of the player start, so
         // a level never opens with an instant chase.
         var minDistSq = Entities.Enemy.ChaseRange * Entities.Enemy.ChaseRange;
@@ -221,7 +217,13 @@ public static class MapGenerator
             if (dx * dx + dy * dy < minDistSq) continue;
             candidates.Add((x, y));
         }
-        if (candidates.Count < total) return null;
+        if (candidates.Count == 0) return null;
+
+        // Uncapped growth: one more enemy per stage, limited only by how many
+        // valid spawn tiles the map actually has.
+        var total     = Math.Min(3 + stage, candidates.Count);
+        var sensitive = Math.Min(5, (total - 1) / 2);
+        var immune    = total - sensitive;
 
         var chosen = new List<(int x, int y)>
         {

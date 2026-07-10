@@ -135,6 +135,12 @@ public class DCMGame : Game
         base.Update(gameTime);
     }
 
+    protected override void OnDeactivated(object sender, EventArgs args)
+    {
+        (_currentScreen as PlayScreen)?.OnFocusLost();
+        base.OnDeactivated(sender, args);
+    }
+
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.SetRenderTarget(_screen);

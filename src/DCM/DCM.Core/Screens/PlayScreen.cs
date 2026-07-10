@@ -124,6 +124,14 @@ public class PlayScreen : IGameScreen
         RecenterMouse();
     }
 
+    // Auto-pause on window focus loss: active gameplay warps the OS cursor to
+    // the window centre every frame, which would fight the user's cursor
+    // outside the game. The end overlays already leave the mouse free.
+    public void OnFocusLost()
+    {
+        if (!_gameOver && !_won) _paused = true;
+    }
+
     // Park the OS cursor at the window centre. Screens receive mouse coords in
     // logical space, so the window centre reads back as the logical centre
     // (RW, RH) and the per-frame look delta stays zero when the mouse is still.

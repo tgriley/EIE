@@ -164,9 +164,9 @@ public class PlayScreen : IGameScreen
         else if (_gameOver || _won)
         {
             if (_gameOver) _player.UpdateDeathSpin(dt);
-            var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _hasNextLevel);
-            if (action == HudAction.NextLevel) return _toNextLevel!(_player.Health);
-            if (action == HudAction.MainMenu)  return _toLevelSelect();
+            var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _won, _hasNextLevel);
+            if (action == HudAction.NextLevel && _won) return _toNextLevel!(_player.Health);
+            if (action == HudAction.MainMenu)          return _toLevelSelect();
         }
         else
         {

@@ -106,18 +106,22 @@ public class HUD : IDisposable
         return HudAction.None;
     }
 
-    public HudAction UpdateEnd(GameTime gameTime, MouseState mouse, MouseState prevMouse, bool hasNextLevel)
+    // canAdvance must match DrawEndOverlay's gate exactly: on death the NEXT LEVEL
+    // button is not drawn, so it must not be clickable or reachable with the pad.
+    public HudAction UpdateEnd(GameTime gameTime, MouseState mouse, MouseState prevMouse,
+        bool won, bool hasNextLevel)
     {
-        _navEnd.ItemCount = hasNextLevel ? 2 : 1;
+        var canAdvance = won && hasNextLevel;
+        _navEnd.ItemCount = canAdvance ? 2 : 1;
         _navEnd.Update(gameTime);
 
-        if (hasNextLevel && _nextLevelButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.NextLevel; }
-        if (_mainMenuButton.IsClicked(mouse, prevMouse))                  { _clickSound.Play(); return HudAction.MainMenu; }
+        if (canAdvance && _nextLevelButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return HudAction.NextLevel; }
+        if (_mainMenuButton.IsClicked(mouse, prevMouse))                { _clickSound.Play(); return HudAction.MainMenu; }
 
         if (_navEnd.JustConfirmed)
         {
             _clickSound.Play();
-            return hasNextLevel && _navEnd.SelectedIndex == 0 ? HudAction.NextLevel : HudAction.MainMenu;
+            return canAdvance && _navEnd.SelectedIndex == 0 ? HudAction.NextLevel : HudAction.MainMenu;
         }
 
         return HudAction.None;

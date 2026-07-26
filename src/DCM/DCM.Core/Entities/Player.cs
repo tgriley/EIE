@@ -43,7 +43,7 @@ public class Player : ICamera, IDamageable, IHealable
         _buffs = buffs ?? new PlayerBuffs();
         PosX = posX;
         PosY = posY;
-        Health = Math.Clamp(startHealth, 1, _buffs.MaxHealth);
+        Health = Math.Clamp(startHealth, 0, _buffs.MaxHealth);
         SprintStamina = _buffs.MaxStamina;
         SetAngle(angle);
     }

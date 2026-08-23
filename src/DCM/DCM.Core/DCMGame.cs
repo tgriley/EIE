@@ -1,8 +1,11 @@
 #nullable enable
 using DCM.Core.Audio;
+using DCM.Core.Configuration;
 using DCM.Core.Entities;
+using DCM.Core.Persistence;
 using DCM.Core.Rendering;
 using DCM.Core.Screens;
+using DCM.Core.Services;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
@@ -16,10 +19,9 @@ public class DCMGame : Game
 {
     // The whole game is drawn at this fixed logical resolution and then scaled
     // up to the window, so all screen layout can assume a 1280x720 canvas.
-    public const int LogicalW = RaycasterRenderer.RW * 2;
-    public const int LogicalH = RaycasterRenderer.RH * 2;
-    private const int WindowW = 1920;
-    private const int WindowH = 1080;
+    public static readonly GameConfiguration Configuration = GameConfiguration.Default;
+    public static int LogicalW => Configuration.Display.LogicalWidth;
+    public static int LogicalH => Configuration.Display.LogicalHeight;
 
     private readonly GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch = null!;
@@ -28,14 +30,21 @@ public class DCMGame : Game
     private SoundEffect _clickSound = null!;
     private PlaySounds _playSounds = null!;
     private MouseState _prevMouse;
+    private readonly GameStateStore _state;
 
     public DCMGame()
     {
+        var savePath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "FindTheExit", "save.json");
+        _state = new GameStateStore(
+            new JsonGameSaveRepository(savePath, ex => System.Diagnostics.Debug.WriteLine(ex)),
+            new GameSettings(), new LevelProgress());
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
-        _graphics.PreferredBackBufferWidth = WindowW;
-        _graphics.PreferredBackBufferHeight = WindowH;
+        _graphics.PreferredBackBufferWidth = Configuration.Display.WindowWidth;
+        _graphics.PreferredBackBufferHeight = Configuration.Display.WindowHeight;
         _graphics.ApplyChanges();
         Window.Title = "Find the Exit";
     }
@@ -47,8 +56,8 @@ public class DCMGame : Game
 
     protected override void LoadContent()
     {
-        SaveManager.Load();
-        if (GameSettings.IsFullscreen)
+        _state.Load();
+        if (_state.Settings.IsFullscreen)
         {
             _graphics.IsFullScreen = true;
             _graphics.ApplyChanges();
@@ -66,7 +75,7 @@ public class DCMGame : Game
             new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateModeSelect, CreateSettings, _clickSound);
 
         IGameScreen CreateModeSelect() =>
-            new ModeSelectScreen(_spriteBatch, font, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateMenu, _clickSound);
+            new ModeSelectScreen(_spriteBatch, font, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateMenu, _clickSound, _state.Progress);
 
         // Each run gets a fresh base seed; stage N within a run is
         // deterministic so a "next level" retry after death would rebuild the
@@ -82,22 +91,24 @@ public class DCMGame : Game
                 h => new BuffSelectScreen(_spriteBatch, font, GraphicsDevice, buffs, h,
                     h2 => CreateEndlessStage(stage + 1, runSeed, h2, buffs), _clickSound),
                 _clickSound, _playSounds, health,
-                MapGenerator.Generate(stage, runSeed + stage), endless: true, buffs: buffs);
+                MapGenerator.Generate(stage, runSeed + stage), endless: true, buffs: buffs,
+                progress: _state.Progress, saveState: () => { _ = _state.Save(); });
 
         IGameScreen CreateIntro() =>
             new IntroScreen(_spriteBatch, font, titleFont, GraphicsDevice, Content,
                 () => CreatePlay(0), CreateMenu, _clickSound);
 
         IGameScreen CreateSettings() =>
-            new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound,
-                GameSettings.ToggleMute,
+            new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound, _state.Settings,
+                () => { _state.Settings.ToggleMute(); _ = _state.Save(); },
                 () =>
                 {
-                    GameSettings.ToggleFullscreen();
-                    _graphics.IsFullScreen = GameSettings.IsFullscreen;
+                    _state.Settings.ToggleFullscreen();
+                    _graphics.IsFullScreen = _state.Settings.IsFullscreen;
                     _graphics.ApplyChanges();
+                    _ = _state.Save();
                 },
-                LevelProgress.Reset);
+                () => { _state.Progress.Reset(); _ = _state.Save(); });
 
         IGameScreen CreatePlay(int levelIndex, int startHealth = 100, PlayerBuffs? buffs = null)
         {
@@ -107,7 +118,8 @@ public class DCMGame : Game
                     h => CreatePlay(levelIndex + 1, h, runBuffs), _clickSound)
                 : null;
             return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth, buffs: runBuffs);
+                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth, buffs: runBuffs,
+                progress: _state.Progress, saveState: () => { _ = _state.Save(); });
         }
 
         _currentScreen = CreateMenu();

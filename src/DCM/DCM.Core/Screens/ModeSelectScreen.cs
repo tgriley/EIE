@@ -1,5 +1,7 @@
 #nullable enable
 using DCM.Core.UI;
+using DCM.Core.Services;
+using DCM.Core.Localization;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
@@ -28,24 +30,26 @@ public class ModeSelectScreen : IGameScreen
     private readonly Func<IGameScreen> _createEndless;
     private readonly Func<IGameScreen> _createMenu;
     private readonly SoundEffect _clickSound;
+    private readonly LevelProgress _progress;
     private readonly MenuNavigator _nav = new(3);
 
     public bool IsMouseVisible => true;
 
     public ModeSelectScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
         Func<IGameScreen> createStory, Func<IGameScreen> createEndless, Func<IGameScreen> createMenu,
-        SoundEffect clickSound)
+        SoundEffect clickSound, LevelProgress progress)
     {
         _painter       = new UIPainter(sb, font, gd);
         _createStory   = createStory;
         _createEndless = createEndless;
         _createMenu    = createMenu;
         _clickSound    = clickSound;
+        _progress      = progress;
 
         int btnW = 300, btnH = 64, btnX = (SW - btnW) / 2;
-        _storyButton   = new Button(new Rectangle(btnX, SH / 2 - 80, btnW, btnH), "STORY",   _painter);
-        _endlessButton = new Button(new Rectangle(btnX, SH / 2 + 40, btnW, btnH), "ENDLESS", _painter);
-        _backButton    = new Button(new Rectangle((SW - 160) / 2, SH - 100, 160, 48), "BACK", _painter);
+        _storyButton   = new Button(new Rectangle(btnX, SH / 2 - 80, btnW, btnH), GameText.Get("Story"), _painter);
+        _endlessButton = new Button(new Rectangle(btnX, SH / 2 + 40, btnW, btnH), GameText.Get("Endless"), _painter);
+        _backButton    = new Button(new Rectangle((SW - 160) / 2, SH - 100, 160, 48), GameText.Get("Back"), _painter);
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -78,7 +82,7 @@ public class ModeSelectScreen : IGameScreen
 
         _painter.DrawRect(0, 0, SW, SH, ColBg);
 
-        const string title = "SELECT MODE";
+        var title = GameText.Get("SelectMode");
         var titleScale = 1.8f;
         var titleSize  = _painter.Measure(title);
         _painter.DrawTextShadow(title,
@@ -95,12 +99,12 @@ public class ModeSelectScreen : IGameScreen
         _painter.End();
     }
 
-    private static string StoryProgress()
-        => $"Reached: Level {LevelProgress.MaxUnlockedLevel() + 1} / {Map.LevelCount}";
+    private string StoryProgress()
+        => $"Reached: Level {_progress.MaxUnlockedLevel() + 1} / {Map.LevelCount}";
 
-    private static string EndlessProgress()
-        => LevelProgress.BestEndlessStage > 0
-            ? $"Best: Stage {LevelProgress.BestEndlessStage}"
+    private string EndlessProgress()
+        => _progress.BestEndlessStage > 0
+            ? $"Best: Stage {_progress.BestEndlessStage}"
             : "Best: --";
 
     private void DrawProgress(string text, int y)

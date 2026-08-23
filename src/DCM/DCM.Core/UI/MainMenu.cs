@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using DCM.Core.Localization;
 
 namespace DCM.Core.UI;
 
@@ -39,9 +40,9 @@ public class MainMenu : IDisposable
         _clickSound = clickSound;
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-        _startButton    = new Button(new Rectangle(btnX, SH / 2 + 20,  btnW, btnH), "START",    _painter);
-        _settingsButton = new Button(new Rectangle(btnX, SH / 2 + 90,  btnW, btnH), "SETTINGS", _painter);
-        _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), "EXIT",     _painter);
+        _startButton    = new Button(new Rectangle(btnX, SH / 2 + 20,  btnW, btnH), GameText.Get("Start"),    _painter);
+        _settingsButton = new Button(new Rectangle(btnX, SH / 2 + 90,  btnW, btnH), GameText.Get("Settings"), _painter);
+        _exitButton     = new Button(new Rectangle(btnX, SH / 2 + 160, btnW, btnH), GameText.Get("Exit"),     _painter);
     }
 
     public MenuAction Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)

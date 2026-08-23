@@ -1,5 +1,7 @@
 #nullable enable
 using DCM.Core.UI;
+using DCM.Core.Services;
+using DCM.Core.Localization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
@@ -16,6 +18,7 @@ public class SettingsScreen : IGameScreen
     private readonly Action _toggleMute;
     private readonly Action _toggleFullscreen;
     private readonly Action _resetSave;
+    private readonly GameSettings _settings;
 
     // index: 0=Sound, 1=Fullscreen, 2=ResetSave, 3=Back
     private readonly MenuNavigator _navNormal  = new(4);
@@ -42,10 +45,12 @@ public class SettingsScreen : IGameScreen
 
     public SettingsScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
         Func<IGameScreen> toMenu, SoundEffect clickSound,
+        GameSettings settings,
         Action toggleMute, Action toggleFullscreen, Action resetSave)
     {
         _painter          = new UIPainter(sb, font, gd);
         _clickSound       = clickSound;
+        _settings         = settings;
         _toMenu           = toMenu;
         _toggleMute       = toggleMute;
         _toggleFullscreen = toggleFullscreen;
@@ -58,10 +63,10 @@ public class SettingsScreen : IGameScreen
 
         _soundBounds      = new Rectangle(rowX,                        SH / 2 - 40,  RowW,     RowH);
         _fullscreenBounds = new Rectangle(rowX,                        SH / 2 + 30,  RowW,     RowH);
-        _resetButton      = new Button(new Rectangle(btnX,             SH / 2 + 110, 240,      RowH), "RESET SAVE", _painter);
-        _confirmButton    = new Button(new Rectangle(confirmX,         SH / 2 + 110, confirmW, RowH), "CONFIRM",    _painter);
-        _cancelButton     = new Button(new Rectangle(confirmX + confirmW + gap, SH / 2 + 110, confirmW, RowH), "CANCEL", _painter);
-        _backButton       = new Button(new Rectangle(btnX,             SH / 2 + 190, 240,      RowH), "BACK",       _painter);
+        _resetButton      = new Button(new Rectangle(btnX,             SH / 2 + 110, 240,      RowH), GameText.Get("ResetSave"), _painter);
+        _confirmButton    = new Button(new Rectangle(confirmX,         SH / 2 + 110, confirmW, RowH), GameText.Get("Confirm"), _painter);
+        _cancelButton     = new Button(new Rectangle(confirmX + confirmW + gap, SH / 2 + 110, confirmW, RowH), GameText.Get("Cancel"), _painter);
+        _backButton       = new Button(new Rectangle(btnX,             SH / 2 + 190, 240,      RowH), GameText.Get("Back"), _painter);
     }
 
     public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -120,14 +125,14 @@ public class SettingsScreen : IGameScreen
 
         _painter.DrawRect(0, 0, SW, SH, ColBg);
 
-        const string title = "SETTINGS";
+        var title = GameText.Get("Settings");
         var titleSize = _painter.Measure(title);
         _painter.DrawTextShadow(title,
             new Vector2((SW - titleSize.X * 2f) / 2f, SH / 2f - 180),
             ColTitle, 2f);
 
-        DrawToggleRow("SOUND",      !GameSettings.MuteSound,  _soundBounds,      mousePos, _navNormal.IsSelected(0));
-        DrawToggleRow("FULLSCREEN", GameSettings.IsFullscreen, _fullscreenBounds, mousePos, _navNormal.IsSelected(1));
+        DrawToggleRow(GameText.Get("Sound"), !_settings.MuteSound, _soundBounds, mousePos, _navNormal.IsSelected(0));
+        DrawToggleRow(GameText.Get("Fullscreen"), _settings.IsFullscreen, _fullscreenBounds, mousePos, _navNormal.IsSelected(1));
 
         if (!_confirmPending)
         {
@@ -165,7 +170,7 @@ public class SettingsScreen : IGameScreen
 
         _painter.DrawTextShadow(label, new Vector2(bounds.X + 20, textY), labelCol);
 
-        var valText  = enabled ? "ON" : "OFF";
+        var valText  = enabled ? GameText.Get("On") : GameText.Get("Off");
         var valColor = enabled ? new Color(80, 210, 80) : new Color(200, 80, 60);
         var valW     = _painter.Measure(valText).X;
         _painter.DrawTextShadow(valText, new Vector2(bounds.Right - valW - 20, textY), valColor);

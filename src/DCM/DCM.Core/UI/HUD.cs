@@ -2,6 +2,7 @@
 using DCM.Core;
 using DCM.Core.Entities;
 using DCM.Core.World;
+using DCM.Core.Localization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
@@ -72,15 +73,15 @@ public class HUD : IDisposable
 
         const int barX = 12, panelH = 50, gap = 6, step = panelH + gap;
         int yCamera = SH - 60, ySprint = yCamera - step, yHealth = ySprint - step;
-        _healthBar = new(barX, yHealth, "HEALTH", new(220, 50, 40),  new(180, 20, 20),  healthW);
-        _sprintBar = new(barX, ySprint, "SPRINT", new(220, 200, 50), new(100, 90, 25),  sprintW);
-        _cameraBar = new(barX, yCamera, "FLASH",  new(80, 200, 220), new(50, 110, 150), cameraW);
+        _healthBar = new(barX, yHealth, GameText.Get("Health"), new(220, 50, 40), new(180, 20, 20), healthW);
+        _sprintBar = new(barX, ySprint, GameText.Get("Sprint"), new(220, 200, 50), new(100, 90, 25), sprintW);
+        _cameraBar = new(barX, yCamera, GameText.Get("Flash"), new(80, 200, 220), new(50, 110, 150), cameraW);
 
         int btnW = 240, btnH = 52, btnX = (SW - 240) / 2;
-        _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "RESUME",       _painter);
-        _mainMenuButton  = new Button(new Rectangle(btnX, SH / 2 + 80,  btnW, btnH), "MAIN MENU",    _painter);
-        _quitButton      = new Button(new Rectangle(btnX, SH / 2 + 150, btnW, btnH), "QUIT",         _painter);
-        _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10,  btnW, btnH), "NEXT LEVEL",   _painter);
+        _resumeButton    = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), GameText.Get("Resume"), _painter);
+        _mainMenuButton  = new Button(new Rectangle(btnX, SH / 2 + 80, btnW, btnH), GameText.Get("MainMenu"), _painter);
+        _quitButton      = new Button(new Rectangle(btnX, SH / 2 + 150, btnW, btnH), GameText.Get("Quit"), _painter);
+        _nextLevelButton = new Button(new Rectangle(btnX, SH / 2 + 10, btnW, btnH), GameText.Get("NextLevel"), _painter);
     }
 
     public HudAction UpdatePause(GameTime gameTime, MouseState mouse, MouseState prevMouse)
@@ -154,10 +155,10 @@ public class HUD : IDisposable
             DrawMinimap(player, enemies, map, fog);
             _healthBar.Draw(_painter, player.Health / (float)_buffs.MaxHealth, player.Health.ToString(), 0.5f);
             _sprintBar.Draw(_painter, sprintStamina / _buffs.MaxStamina,
-                sprintStamina >= _buffs.MaxStamina ? "READY" : $"{sprintStamina:F1}s");
+                sprintStamina >= _buffs.MaxStamina ? GameText.Get("Ready") : $"{sprintStamina:F1}s");
             var chargeFrac = cameraMaxCooldown > 0 ? 1f - cameraCooldown / cameraMaxCooldown : 1f;
             _cameraBar.Draw(_painter, chargeFrac,
-                chargeFrac >= 1f ? "READY" : $"{cameraCooldown:F1}s");
+                chargeFrac >= 1f ? GameText.Get("Ready") : $"{cameraCooldown:F1}s");
             DrawObjectiveText();
             DrawTimer(elapsed);
             DrawCrosshair();
@@ -246,7 +247,7 @@ public class HUD : IDisposable
     private void DrawPauseOverlay(Point mousePos)
     {
         _painter.DrawRect(0, 0, SW, SH, new Color(0, 0, 0, 160));
-        var title = "PAUSED";
+        var title = GameText.Get("Paused");
         var ts = _painter.Measure(title);
         _painter.DrawTextShadow(title, new Vector2((SW - ts.X) / 2, SH / 2 - 60), ColText);
         _resumeButton.Draw(mousePos,   _navPause.IsSelected(0));
@@ -256,7 +257,7 @@ public class HUD : IDisposable
 
     private void DrawTimer(float elapsed)
     {
-        var text = LevelProgress.FormatTime(elapsed);
+        var text = Services.LevelProgress.FormatTime(elapsed);
         var size = _painter.Measure(text);
         int px = SW - (int)size.X - 22, py = 8;
         _painter.DrawRect(px - 8, py - 4, (int)size.X + 16, 28, ColPanelBg);
@@ -268,27 +269,27 @@ public class HUD : IDisposable
     {
         _painter.DrawRect(0, 0, SW, SH, new Color(0, 0, 0, 180));
 
-        var title = won ? "YOU ESCAPED!" : "YOU DIED";
+        var title = won ? GameText.Get("YouEscaped") : GameText.Get("YouDied");
         var tc    = won ? new Color(60, 220, 60) : new Color(220, 40, 40);
         _painter.DrawTextShadow(title,
             new Vector2((SW - _painter.Measure(title).X) / 2, SH / 2 - 120), tc);
 
         if (won)
         {
-            var timeText = $"TIME  {LevelProgress.FormatTime(elapsed)}";
+            var timeText = $"TIME  {Services.LevelProgress.FormatTime(elapsed)}";
             _painter.DrawTextShadow(timeText,
                 new Vector2((SW - _painter.Measure(timeText).X) / 2, SH / 2 - 60), ColText);
 
             if (isNewBest)
             {
-                const string newBestText = "NEW BEST!";
+                var newBestText = GameText.Get("NewBest");
                 _painter.DrawTextShadow(newBestText,
                     new Vector2((SW - _painter.Measure(newBestText).X) / 2, SH / 2 - 30),
                     new Color(255, 215, 0));
             }
             else if (bestTime < float.MaxValue)
             {
-                var bestText = $"BEST  {LevelProgress.FormatTime(bestTime)}";
+                var bestText = $"BEST  {Services.LevelProgress.FormatTime(bestTime)}";
                 _painter.DrawTextShadow(bestText,
                     new Vector2((SW - _painter.Measure(bestText).X) / 2, SH / 2 - 30), ColTextDim);
             }

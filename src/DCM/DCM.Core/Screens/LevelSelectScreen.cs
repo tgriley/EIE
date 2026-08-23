@@ -1,6 +1,7 @@
 #nullable enable
 using DCM.Core;
 using DCM.Core.UI;
+using DCM.Core.Services;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
@@ -19,6 +20,7 @@ public class LevelSelectScreen : IGameScreen
     private readonly Func<int, IGameScreen> _createPlay;
     private readonly Func<IGameScreen> _createMenu;
     private readonly SoundEffect _clickSound;
+    private readonly LevelProgress _progress;
     // levels in a 5-column grid, back button is the last item
     private readonly MenuNavigator _nav;
 
@@ -37,11 +39,19 @@ public class LevelSelectScreen : IGameScreen
 
     public LevelSelectScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
         Func<int, IGameScreen> createPlay, Func<IGameScreen> createMenu, SoundEffect clickSound)
+        : this(sb, font, gd, createPlay, createMenu, clickSound, new LevelProgress())
+    {
+    }
+
+    public LevelSelectScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd,
+        Func<int, IGameScreen> createPlay, Func<IGameScreen> createMenu, SoundEffect clickSound,
+        LevelProgress progress)
     {
         _painter     = new UIPainter(sb, font, gd);
         _createPlay  = createPlay;
         _createMenu  = createMenu;
         _clickSound  = clickSound;
+        _progress    = progress;
         _nav         = new MenuNavigator(Map.LevelCount + 1, Cols);
 
         const int btnW = 200, btnH = 60, gapX = 20, gapY = 24;
@@ -77,7 +87,7 @@ public class LevelSelectScreen : IGameScreen
                 _clickSound.Play();
                 return _createMenu();
             }
-            if (LevelProgress.IsUnlocked(_nav.SelectedIndex))
+            if (_progress.IsUnlocked(_nav.SelectedIndex))
             {
                 _clickSound.Play();
                 return _createPlay(_nav.SelectedIndex);
@@ -88,7 +98,7 @@ public class LevelSelectScreen : IGameScreen
         if (_backButton.IsClicked(mouse, prevMouse)) { _clickSound.Play(); return _createMenu(); }
         for (var i = 0; i < _levelButtons.Length; i++)
         {
-            if (LevelProgress.IsUnlocked(i) && _levelButtons[i].IsClicked(mouse, prevMouse))
+            if (_progress.IsUnlocked(i) && _levelButtons[i].IsClicked(mouse, prevMouse))
             {
                 _clickSound.Play();
                 return _createPlay(i);
@@ -114,13 +124,13 @@ public class LevelSelectScreen : IGameScreen
 
         for (var i = 0; i < _levelButtons.Length; i++)
         {
-            if (LevelProgress.IsUnlocked(i))
+            if (_progress.IsUnlocked(i))
             {
                 _levelButtons[i].Draw(mousePos, _nav.IsSelected(i));
-                if (LevelProgress.HasBestTime(i))
+                if (_progress.HasBestTime(i))
                 {
                     var r       = _levelRects[i];
-                    var timeStr = LevelProgress.FormatTime(LevelProgress.GetBestTime(i));
+                    var timeStr = LevelProgress.FormatTime(_progress.GetBestTime(i));
                     var ts      = _painter.Measure($"Record: {timeStr}");
                     _painter.DrawTextShadow(timeStr,
                         new Vector2(r.X + (r.Width - ts.X * 0.7f) / 2f, r.Bottom + 4),

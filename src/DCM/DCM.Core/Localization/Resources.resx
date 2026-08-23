@@ -128,4 +128,30 @@
     <data name="ClickAnywhere" xml:space="preserve">
     <value>Click Anywhere</value>
   </data>
+    <data name="Start"><value>START</value></data>
+    <data name="Settings"><value>SETTINGS</value></data>
+    <data name="Exit"><value>EXIT</value></data>
+    <data name="Health"><value>HEALTH</value></data>
+    <data name="Sprint"><value>SPRINT</value></data>
+    <data name="Flash"><value>FLASH</value></data>
+    <data name="Resume"><value>RESUME</value></data>
+    <data name="MainMenu"><value>MAIN MENU</value></data>
+    <data name="Quit"><value>QUIT</value></data>
+    <data name="NextLevel"><value>NEXT LEVEL</value></data>
+    <data name="Ready"><value>READY</value></data>
+    <data name="Paused"><value>PAUSED</value></data>
+    <data name="YouEscaped"><value>YOU ESCAPED!</value></data>
+    <data name="YouDied"><value>YOU DIED</value></data>
+    <data name="NewBest"><value>NEW BEST!</value></data>
+    <data name="ResetSave"><value>RESET SAVE</value></data>
+    <data name="Confirm"><value>CONFIRM</value></data>
+    <data name="Cancel"><value>CANCEL</value></data>
+    <data name="Back"><value>BACK</value></data>
+    <data name="Sound"><value>SOUND</value></data>
+    <data name="Fullscreen"><value>FULLSCREEN</value></data>
+    <data name="On"><value>ON</value></data>
+    <data name="Off"><value>OFF</value></data>
+    <data name="Story"><value>STORY</value></data>
+    <data name="Endless"><value>ENDLESS</value></data>
+    <data name="SelectMode"><value>SELECT MODE</value></data>
 </root>

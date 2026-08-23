@@ -1,9 +1,11 @@
 #nullable enable
 using DCM.Core;
 using DCM.Core.Audio;
+using DCM.Core.Configuration;
 using DCM.Core.Entities;
 using DCM.Core.Input;
 using DCM.Core.Rendering;
+using DCM.Core.Services;
 using DCM.Core.UI;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
@@ -31,6 +33,9 @@ public class PlayScreen : IGameScreen
     private readonly PlaySounds _sounds;
     private readonly FogOfWar _fog;
     private readonly PlayerBuffs _buffs;
+    private readonly LevelProgress _progress;
+    private readonly LevelCompletionService _completion;
+    private readonly GameplayConfiguration _gameplayConfig;
     private readonly float _cameraUseDuration;
     private readonly bool _hasNextLevel;
     private readonly bool _endless;
@@ -49,17 +54,13 @@ public class PlayScreen : IGameScreen
     private bool _isNewBest;
     private GamePadState _prevGamePad;
 
-    private const float StickDeadZone    = 0.20f;
-    private const float TriggerThreshold = 0.50f;
-    private const int   ControllerLookSens = 50;
-    private const float CameraRaiseTime   = 0.4f;
-
     public bool IsMouseVisible => _paused || _gameOver || _won;
 
     public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
         int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
         SoundEffect clickSound, PlaySounds sounds, int startHealth = 100,
-        Map? map = null, bool endless = false, PlayerBuffs? buffs = null)
+        Map? map = null, bool endless = false, PlayerBuffs? buffs = null,
+        LevelProgress? progress = null, Action? saveState = null)
     {
         _gd            = gd;
         _levelIndex    = levelIndex;
@@ -70,6 +71,9 @@ public class PlayScreen : IGameScreen
         _hasNextLevel  = toNextLevel != null;
         _sounds        = sounds;
         _buffs         = buffs ?? new PlayerBuffs();
+        _progress      = progress ?? new LevelProgress();
+        _completion    = new LevelCompletionService(_progress, saveState ?? (() => { }));
+        _gameplayConfig = GameConfiguration.Default.Gameplay;
         _cameraUseDuration = _buffs.CameraCooldown;
 
         var sheets     = new EnemySpriteSheet[EnemyCatalog.SpriteCount];
@@ -172,15 +176,15 @@ public class PlayScreen : IGameScreen
         {
             _elapsed += dt;
 
-            var leftX  = Math.Abs(gp.ThumbSticks.Left.X)  > StickDeadZone ? gp.ThumbSticks.Left.X  : 0f;
-            var leftY  = Math.Abs(gp.ThumbSticks.Left.Y)  > StickDeadZone ? gp.ThumbSticks.Left.Y  : 0f;
-            var rightX = Math.Abs(gp.ThumbSticks.Right.X) > StickDeadZone ? gp.ThumbSticks.Right.X : 0f;
+            var leftX  = Math.Abs(gp.ThumbSticks.Left.X)  > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Left.X  : 0f;
+            var leftY  = Math.Abs(gp.ThumbSticks.Left.Y)  > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Left.Y  : 0f;
+            var rightX = Math.Abs(gp.ThumbSticks.Right.X) > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Right.X : 0f;
 
             var lookScale = _gd.PresentationParameters.BackBufferWidth / (float)DCMGame.LogicalW;
             var mouseDeltaX = _firstInputFrame ? 0 : (int)((mouse.X - RaycasterRenderer.RW) * lookScale);
             _firstInputFrame = false;
             RecenterMouse();
-            mouseDeltaX += (int)(rightX * ControllerLookSens);
+            mouseDeltaX += (int)(rightX * _gameplayConfig.ControllerLookSensitivity);
 
             var moving = kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.S) ||
                          kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.D) ||
@@ -195,15 +199,15 @@ public class PlayScreen : IGameScreen
                 kb.IsKeyDown(Keys.D)                             || leftX >  0,
                 kb.IsKeyDown(Keys.Left),
                 kb.IsKeyDown(Keys.Right),
-                kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > TriggerThreshold,
+                kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > _gameplayConfig.TriggerThreshold,
                 mouseDeltaX,
                 _cameraRaised), _enemies);
 
             if (moving)
-                _renderer.WeaponBobPhase += dt * 7f;
+                _renderer.WeaponBobPhase += dt * _gameplayConfig.WeaponBobSpeed;
 
             var raiseHeld   = mouse.RightButton == ButtonState.Pressed ||
-                              gp.Triggers.Right > TriggerThreshold;
+                              gp.Triggers.Right > _gameplayConfig.TriggerThreshold;
             var shootJustPressed = mouse.LeftButton    == ButtonState.Pressed &&
                                    prevMouse.LeftButton != ButtonState.Pressed ||
                                    gp.Buttons.RightShoulder    == ButtonState.Pressed &&
@@ -214,10 +218,10 @@ public class PlayScreen : IGameScreen
             _cameraRaised = raiseHeld && _cameraCooldown <= 0 && !_cameraFired;
             _renderer.WeaponRaiseTarget = _cameraRaised;
 
-            if (_cameraRaised && _cameraRaiseTimer < CameraRaiseTime)
+            if (_cameraRaised && _cameraRaiseTimer < _gameplayConfig.CameraRaiseTime)
                 _cameraRaiseTimer += dt;
 
-            var cameraReady    = _cameraRaised && _cameraRaiseTimer >= CameraRaiseTime;
+            var cameraReady    = _cameraRaised && _cameraRaiseTimer >= _gameplayConfig.CameraRaiseTime;
             var flashJustFired = false;
             if (cameraReady && shootJustPressed)
             {
@@ -238,17 +242,7 @@ public class PlayScreen : IGameScreen
             {
                 _won = true;
                 _sounds.Win.Play();
-                if (_endless)
-                {
-                    LevelProgress.RecordEndlessStage(_levelIndex + 1);
-                }
-                else
-                {
-                    var prevBest = LevelProgress.GetBestTime(_levelIndex);
-                    LevelProgress.RecordTime(_levelIndex, _elapsed);
-                    _isNewBest = _elapsed < prevBest || prevBest >= float.MaxValue;
-                    if (_hasNextLevel) LevelProgress.Unlock(_levelIndex + 1);
-                }
+                _isNewBest = _completion.Complete(_levelIndex, _elapsed, _endless, _hasNextLevel);
             }
         }
 
@@ -260,7 +254,7 @@ public class PlayScreen : IGameScreen
     {
         _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
         _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
-            _elapsed, _endless ? float.MaxValue : LevelProgress.GetBestTime(_levelIndex), _isNewBest,
+            _elapsed, _endless ? float.MaxValue : _progress.GetBestTime(_levelIndex), _isNewBest,
             _cameraCooldown, _cameraUseDuration, _player.SprintStamina, _fog);
     }
 

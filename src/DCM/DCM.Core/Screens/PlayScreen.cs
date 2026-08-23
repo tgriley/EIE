@@ -204,7 +204,7 @@ public class PlayScreen : IGameScreen
                 _cameraRaised), _enemies);
 
             if (moving)
-                _renderer.WeaponBobPhase += dt * _gameplayConfig.WeaponBobSpeed;
+                _renderer.WeaponBobPhase += dt * _gameplayConfig.WeaponBobSpeed * _player.MovementRatio;
 
             var raiseHeld   = mouse.RightButton == ButtonState.Pressed ||
                               gp.Triggers.Right > _gameplayConfig.TriggerThreshold;

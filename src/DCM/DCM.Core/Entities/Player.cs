@@ -30,6 +30,7 @@ public class Player : ICamera, IDamageable, IHealable
 
     public float SprintStamina { get; private set; }
     public float SprintMax => _buffs.MaxStamina;
+    public float MovementRatio { get; private set; }
     private bool _sprintDepleted;
 
     public const double CollisionRadius = 0.35;
@@ -114,6 +115,9 @@ public class Player : ICamera, IDamageable, IHealable
         else if (yBlocker != null) TakeDamage(8, yBlocker.PosX, yBlocker.PosY);
 
         var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
+        MovementRatio = isMoving
+            ? (float)(baseSpeed / MoveSpeed) * (input.CameraRaising ? 0.5f : 1f)
+            : 0f;
         if (isSprinting && isMoving)
         {
             SprintStamina = Math.Max(0f, SprintStamina - dt);

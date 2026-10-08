@@ -5,9 +5,8 @@ using System.Linq;
 
 namespace DCM.Core.World;
 
-// Seeded BSP map generator for endless mode. Produces the same shape of data
-// as the hand-authored JSON levels, so the resulting Map is a drop-in for
-// PlayScreen: solid border, connected rooms and corridors, start in the
+// Seeded BSP map generator for endless mode. Produces a Map with a solid
+// border, connected rooms and corridors, start in the
 // top-left region, and far-wall tiles left open so Map.RelocateExit can place
 // a reachable exit. Difficulty (size, enemy volume, immune-dominant mix)
 // scales with the stage number; the same (stage, seed) pair always yields the
@@ -32,7 +31,7 @@ public static class MapGenerator
     private static Map? TryGenerate(int stage, int seed)
     {
         var rng  = new Random(seed);
-        var size = Math.Min(MinSize + stage * 2, MaxSize);
+        var size = SizeFor(stage);
 
         var tiles = new int[size, size];
         for (var y = 0; y < size; y++)
@@ -52,7 +51,7 @@ public static class MapGenerator
             if (a != b) CarveCorridor(tiles, rng, a, b);
         }
 
-        var start = centers.OrderBy(c => c.x * c.x + c.y * c.y).First();
+        var start = centers.OrderBy(c => DistSq(c, (0, 0))).First();
 
         EnsureExitCandidates(tiles, rng, size, centers);
 
@@ -66,8 +65,13 @@ public static class MapGenerator
         var angle = (float)Math.Atan2(cy, cx);
 
         return new Map(tiles, start.x + 0.5f, start.y + 0.5f, angle,
-            spawns, [], rng.Next(2));
+            spawns, rng.Next(2), rng);
     }
+
+    private static int SizeFor(int stage) => Math.Min(MinSize + stage * 2, MaxSize);
+
+    private static int DistSq((int x, int y) a, (int x, int y) b)
+        => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 
     // ── BSP ──────────────────────────────────────────────────────────────────
 
@@ -168,7 +172,7 @@ public static class MapGenerator
             ? (x: rng.Next(2, size - 2), y: size - 2)
             : (x: size - 2, y: rng.Next(2, size - 2));
         var from = centers
-            .OrderBy(c => (c.x - target.x) * (c.x - target.x) + (c.y - target.y) * (c.y - target.y))
+            .OrderBy(c => DistSq(c, target))
             .First();
         CarveCorridor(tiles, rng, from, target);
     }
@@ -213,8 +217,7 @@ public static class MapGenerator
         for (var x = 1; x < size - 1; x++)
         {
             if (tiles[y, x] != Tile.Empty) continue;
-            var dx = x - start.x; var dy = y - start.y;
-            if (dx * dx + dy * dy < minDistSq) continue;
+            if (DistSq((x, y), start) < minDistSq) continue;
             candidates.Add((x, y));
         }
         if (candidates.Count == 0) return null;
@@ -227,15 +230,13 @@ public static class MapGenerator
 
         var chosen = new List<(int x, int y)>
         {
-            candidates.OrderByDescending(c =>
-                (c.x - start.x) * (c.x - start.x) + (c.y - start.y) * (c.y - start.y)).First()
+            candidates.OrderByDescending(c => DistSq(c, start)).First()
         };
         while (chosen.Count < total)
         {
             var best = candidates
                 .Where(c => !chosen.Contains(c))
-                .OrderByDescending(c => chosen.Min(ch =>
-                    (c.x - ch.x) * (c.x - ch.x) + (c.y - ch.y) * (c.y - ch.y)))
+                .OrderByDescending(c => chosen.Min(ch => DistSq(c, ch)))
                 .First();
             chosen.Add(best);
         }
@@ -248,9 +249,7 @@ public static class MapGenerator
             if (im < immune)   types.Add(im++ % 2 == 0 ? 5 : 6);
         }
 
-        chosen.Sort((a, b) =>
-            ((a.x - start.x) * (a.x - start.x) + (a.y - start.y) * (a.y - start.y))
-            .CompareTo((b.x - start.x) * (b.x - start.x) + (b.y - start.y) * (b.y - start.y)));
+        chosen.Sort((a, b) => DistSq(a, start).CompareTo(DistSq(b, start)));
 
         return chosen.Select((c, i) => (c.x, c.y, types[i])).ToArray();
     }
@@ -259,7 +258,7 @@ public static class MapGenerator
     private static Map FallbackArena(int stage, int seed)
     {
         var rng  = new Random(seed);
-        var size = Math.Min(MinSize + stage * 2, MaxSize);
+        var size = SizeFor(stage);
         var tiles = new int[size, size];
         for (var y = 0; y < size; y++)
         for (var x = 0; x < size; x++)
@@ -267,6 +266,6 @@ public static class MapGenerator
                 ? Tile.Wall1 : Tile.Empty;
 
         var spawns = PlaceEnemies(tiles, rng, size, (2, 2), stage) ?? [];
-        return new Map(tiles, 2.5f, 2.5f, 0f, spawns, [], rng.Next(2));
+        return new Map(tiles, 2.5f, 2.5f, 0f, spawns, rng.Next(2), rng);
     }
 }

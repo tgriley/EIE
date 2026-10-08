@@ -122,11 +122,59 @@
             PublicKeyToken=b77a5c561934e089
         </value>
     </resheader>
-    s
     <data name="TapAnywhere" xml:space="preserve">
-    <value>Tap Anywhere</value>
+    <value>Touchez N'importe Où</value>
   </data>
     <data name="ClickAnywhere" xml:space="preserve">
-    <value>Click Anywhere</value>
+    <value>Cliquez N'importe Où</value>
   </data>
+    <data name="Start"><value>JOUER</value></data>
+    <data name="Settings"><value>OPTIONS</value></data>
+    <data name="Exit"><value>QUITTER</value></data>
+    <data name="Health"><value>SANTÉ</value></data>
+    <data name="Sprint"><value>SPRINT</value></data>
+    <data name="Flash"><value>FLASH</value></data>
+    <data name="Resume"><value>REPRENDRE</value></data>
+    <data name="MainMenu"><value>MENU PRINCIPAL</value></data>
+    <data name="Quit"><value>QUITTER</value></data>
+    <data name="NextLevel"><value>NIVEAU SUIVANT</value></data>
+    <data name="Ready"><value>PRÊT</value></data>
+    <data name="Paused"><value>PAUSE</value></data>
+    <data name="YouEscaped"><value>VOUS AVEZ FUI !</value></data>
+    <data name="YouDied"><value>VOUS ÊTES MORT</value></data>
+    <data name="ResetSave"><value>EFFACER SAUVEG.</value></data>
+    <data name="Confirm"><value>CONFIRMER</value></data>
+    <data name="Cancel"><value>ANNULER</value></data>
+    <data name="Back"><value>RETOUR</value></data>
+    <data name="Sound"><value>SON</value></data>
+    <data name="Fullscreen"><value>PLEIN ÉCRAN</value></data>
+    <data name="On"><value>OUI</value></data>
+    <data name="Off"><value>NON</value></data>
+    <data name="Objective"><value>Trouvez la sortie et fuyez !</value></data>
+    <data name="ControlsMove" xml:space="preserve"><value>W A S D  -  Bouger</value></data>
+    <data name="ControlsRun" xml:space="preserve"><value>Maj      -  Courir</value></data>
+    <data name="ControlsLook" xml:space="preserve"><value>Souris   -  Regarder</value></data>
+    <data name="ControlsCamera" xml:space="preserve"><value>Clic D   -  Appareil</value></data>
+    <data name="ControlsPhoto" xml:space="preserve"><value>Clic G   -  Photo</value></data>
+    <data name="ControlsPause" xml:space="preserve"><value>Échap    -  Pause</value></data>
+    <data name="Time"><value>TEMPS</value></data>
+    <data name="Skip"><value>PASSER</value></data>
+    <data name="LevelComplete"><value>NIVEAU TERMINÉ</value></data>
+    <data name="ChooseBuff"><value>CHOISISSEZ UN BONUS</value></data>
+    <data name="YourStats"><value>VOS STATISTIQUES</value></data>
+    <data name="Level"><value>NIV</value></data>
+    <data name="BuffRunSpeed"><value>VITESSE</value></data>
+    <data name="BuffRunSpeedDesc"><value>+0.25 vitesse de sprint</value></data>
+    <data name="BuffMaxStamina"><value>ENDURANCE</value></data>
+    <data name="BuffMaxStaminaDesc"><value>+0.25s d'endurance max</value></data>
+    <data name="BuffMaxHealth"><value>SANTÉ MAX</value></data>
+    <data name="BuffMaxHealthDesc"><value>+15 santé max, garde le %</value></data>
+    <data name="BuffStaminaRegen"><value>RÉCUP. ENDURANCE</value></data>
+    <data name="BuffStaminaRegenDesc"><value>+15% récupération d'endurance</value></data>
+    <data name="BuffCameraCooldown"><value>RECHARGE FLASH</value></data>
+    <data name="BuffCameraCooldownDesc"><value>-8% recharge du flash</value></data>
+    <data name="BuffSightRange"><value>PORTÉE VISUELLE</value></data>
+    <data name="BuffSightRangeDesc"><value>+0.75 cases de vue et minicarte</value></data>
+    <data name="BuffStunDuration"><value>DURÉE ÉTOURDIR</value></data>
+    <data name="BuffStunDurationDesc"><value>+0.5s d'étourdissement</value></data>
 </root>

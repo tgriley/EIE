@@ -1,4 +1,5 @@
 using DCM.Core.Persistence;
+using System;
 
 namespace DCM.Core.Services;
 
@@ -25,10 +26,15 @@ public sealed class GameStateStore
 
     public bool Save() => _repository.Save(new SaveData
     {
-        UnlockedLevels = Progress.GetUnlockedLevels(),
-        BestTimes = Progress.GetBestTimes(),
         BestEndlessStage = Progress.BestEndlessStage,
         MuteSound = Settings.MuteSound,
         IsFullscreen = Settings.IsFullscreen
     });
+
+    // Apply a change to settings or progress and persist it immediately.
+    public void Update(Action<GameStateStore> change)
+    {
+        change(this);
+        Save();
+    }
 }

@@ -33,9 +33,14 @@ public class UIPainter : IDisposable
         _sb.Draw(_pixel, new Rectangle(x, y, w, h), c);
     }
 
-    public void DrawTexture(Texture2D tex, Rectangle dest, Rectangle? source, Color c)
+    public void DrawRect(Rectangle r, Color c) => DrawRect(r.X, r.Y, r.Width, r.Height, c);
+
+    public void FillScreen(Color c) => DrawRect(0, 0, UITheme.ScreenW, UITheme.ScreenH, c);
+
+    public void DrawFramedPanel(Rectangle r, bool highlighted)
     {
-        _sb.Draw(tex, dest, source, c);
+        DrawRect(r.X - 2, r.Y - 2, r.Width + 4, r.Height + 4, highlighted ? UITheme.BorderHover : UITheme.Border);
+        DrawRect(r, highlighted ? UITheme.ControlBgHover : UITheme.ControlBg);
     }
 
     public void DrawTextShadow(string text, Vector2 pos, Color color, float scale = 1f)
@@ -48,6 +53,15 @@ public class UIPainter : IDisposable
             shadow, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         _sb.DrawString(font, text, pos,
             color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+    }
+
+    public void DrawCentered(string text, float y, Color color, float scale = 1f)
+        => DrawCenteredIn(new Rectangle(0, 0, UITheme.ScreenW, UITheme.ScreenH), text, y, color, scale);
+
+    public void DrawCenteredIn(Rectangle r, string text, float y, Color color, float scale = 1f)
+    {
+        var width = Measure(text).X * scale;
+        DrawTextShadow(text, new Vector2(r.X + (r.Width - width) / 2f, y), color, scale);
     }
 
     public Vector2 Measure(string text) => _font.MeasureString(text);

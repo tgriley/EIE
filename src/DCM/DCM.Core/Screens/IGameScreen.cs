@@ -1,6 +1,6 @@
 #nullable enable
+using DCM.Core.Input;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 using System;
 
 namespace DCM.Core.Screens;
@@ -9,6 +9,7 @@ namespace DCM.Core.Screens;
 public interface IGameScreen : IDisposable
 {
     bool IsMouseVisible { get; }
-    IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse);
+    IGameScreen? Update(GameTime gameTime, InputSnapshot input);
     void Draw(GameTime gameTime);
+    void OnFocusLost() { }
 }

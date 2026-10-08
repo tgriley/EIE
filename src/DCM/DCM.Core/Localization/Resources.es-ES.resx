@@ -126,6 +126,55 @@
     <value>Toca En Cualquier Sitio</value>
   </data>
     <data name="ClickAnywhere" xml:space="preserve">
-    <value>Click Anywhere</value>
+    <value>Haz Clic En Cualquier Sitio</value>
   </data>
+    <data name="Start"><value>EMPEZAR</value></data>
+    <data name="Settings"><value>AJUSTES</value></data>
+    <data name="Exit"><value>SALIR</value></data>
+    <data name="Health"><value>SALUD</value></data>
+    <data name="Sprint"><value>CARRERA</value></data>
+    <data name="Flash"><value>FLASH</value></data>
+    <data name="Resume"><value>CONTINUAR</value></data>
+    <data name="MainMenu"><value>MENÚ PRINCIPAL</value></data>
+    <data name="Quit"><value>SALIR</value></data>
+    <data name="NextLevel"><value>SIGUIENTE NIVEL</value></data>
+    <data name="Ready"><value>LISTO</value></data>
+    <data name="Paused"><value>PAUSA</value></data>
+    <data name="YouEscaped"><value>¡HAS ESCAPADO!</value></data>
+    <data name="YouDied"><value>HAS MUERTO</value></data>
+    <data name="ResetSave"><value>BORRAR PARTIDA</value></data>
+    <data name="Confirm"><value>CONFIRMAR</value></data>
+    <data name="Cancel"><value>CANCELAR</value></data>
+    <data name="Back"><value>VOLVER</value></data>
+    <data name="Sound"><value>SONIDO</value></data>
+    <data name="Fullscreen"><value>PANTALLA COMPLETA</value></data>
+    <data name="On"><value>SÍ</value></data>
+    <data name="Off"><value>NO</value></data>
+    <data name="Objective"><value>¡Encuentra la salida y escapa!</value></data>
+    <data name="ControlsMove" xml:space="preserve"><value>W A S D  -  Moverse</value></data>
+    <data name="ControlsRun" xml:space="preserve"><value>Shift    -  Correr</value></data>
+    <data name="ControlsLook" xml:space="preserve"><value>Ratón    -  Mirar</value></data>
+    <data name="ControlsCamera" xml:space="preserve"><value>Clic Der -  Cámara</value></data>
+    <data name="ControlsPhoto" xml:space="preserve"><value>Clic Izq -  Foto</value></data>
+    <data name="ControlsPause" xml:space="preserve"><value>Esc      -  Pausa</value></data>
+    <data name="Time"><value>TIEMPO</value></data>
+    <data name="Skip"><value>OMITIR</value></data>
+    <data name="LevelComplete"><value>NIVEL COMPLETADO</value></data>
+    <data name="ChooseBuff"><value>ELIGE UNA MEJORA</value></data>
+    <data name="YourStats"><value>TUS ESTADÍSTICAS</value></data>
+    <data name="Level"><value>NV</value></data>
+    <data name="BuffRunSpeed"><value>VELOCIDAD</value></data>
+    <data name="BuffRunSpeedDesc"><value>+0.25 velocidad de carrera</value></data>
+    <data name="BuffMaxStamina"><value>AGUANTE</value></data>
+    <data name="BuffMaxStaminaDesc"><value>+0.25s de aguante máximo</value></data>
+    <data name="BuffMaxHealth"><value>SALUD MÁXIMA</value></data>
+    <data name="BuffMaxHealthDesc"><value>+15 salud máx., mantiene el %</value></data>
+    <data name="BuffStaminaRegen"><value>RECUP. AGUANTE</value></data>
+    <data name="BuffStaminaRegenDesc"><value>+15% recuperación de aguante</value></data>
+    <data name="BuffCameraCooldown"><value>RECARGA FLASH</value></data>
+    <data name="BuffCameraCooldownDesc"><value>-8% recarga del flash</value></data>
+    <data name="BuffSightRange"><value>ALCANCE VISUAL</value></data>
+    <data name="BuffSightRangeDesc"><value>+0.75 casillas de vista y minimapa</value></data>
+    <data name="BuffStunDuration"><value>DURACIÓN ATURDIR</value></data>
+    <data name="BuffStunDurationDesc"><value>+0.5s de aturdimiento</value></data>
 </root>

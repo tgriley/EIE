@@ -13,8 +13,13 @@ public class RaycasterRenderer : IDisposable
     // Internal (low-res) render dimensions — 2× pixel scaling gives retro feel
     public const int RW = 640;
     public const int RH = 360;
+    private const int Scale = 2;
+    private const int ScreenW = RW * Scale;
+    private const int ScreenH = RH * Scale;
 
-    private readonly GraphicsDevice _gd;
+    // Fog: beyond _fogEnd everything is pitch black
+    private const double FogStart = 1.5;
+
     private readonly SpriteBatch _sb;
 
     // Frame buffer uploaded to GPU each frame
@@ -24,117 +29,70 @@ public class RaycasterRenderer : IDisposable
     // Z-buffer (perpendicular wall distance per column)
     private readonly double[] _zBuf = new double[RW];
 
-    // Wall / floor / ceiling / door textures (pixel data from content pipeline)
-    private readonly Color[] _wallTexPix;
-    private readonly int _wallTexW;
-    private readonly int _wallTexH;
+    private readonly PixelTexture _wall;
+    private readonly PixelTexture _door;
+    private readonly PixelTexture _floor;
+    private readonly PixelTexture _ceiling;
 
-    private readonly Color[] _doorTexPix;
-    private readonly int _doorTexW;
-    private readonly int _doorTexH;
-
-    private readonly Color[] _floorTexPix;
-    private readonly int _floorTexW;
-    private readonly int _floorTexH;
-
-    private readonly Color[] _ceilTexPix;
-    private readonly int _ceilTexW;
-    private readonly int _ceilTexH;
-
-    // 1×1 white pixel for rectangles (muzzle flash overlay)
+    // 1×1 white pixel for the flash overlay
     private readonly Texture2D _pixel;
 
-    // Weapon sprite (camera held by player)
-    private readonly Texture2D? _weaponTex;
+    // Camera sprite held by the player
+    private readonly Texture2D _weaponTex;
 
-    // Fog: beyond this perpDist everything is pitch black
-    private const double FogStart = 1.5;
     private readonly double _fogEnd;
 
-    // Screen-space target (draw scaled frame buffer here)
-    private Rectangle _destRect;
-
-    // Shoot flash overlay
-    public float MuzzleFlash { get; set; } = 0f;
-
-    // Weapon bob accumulator — advance when player is moving
-    public float WeaponBobPhase { get; set; }
-
-    // Camera raise: set true while LMB is held; internally smoothed
-    public bool WeaponRaiseTarget { get; set; }
-    private float _weaponRaise;
-
-    public RaycasterRenderer(GraphicsDevice gd,
-        Color[] wallTexPix, int wallTexW, int wallTexH,
-        Color[] doorTexPix, int doorTexW, int doorTexH,
-        Color[] floorTexPix, int floorTexW, int floorTexH,
-        Color[] ceilTexPix, int ceilTexW, int ceilTexH,
-        Texture2D? weaponTex = null, double fogEnd = 9.0)
+    public RaycasterRenderer(GraphicsDevice gd, PixelTexture wall, PixelTexture door,
+        PixelTexture floor, PixelTexture ceiling, Texture2D weaponTex, double fogEnd)
     {
-        _gd = gd;
         _sb = new SpriteBatch(gd);
+        _wall = wall;
+        _door = door;
+        _floor = floor;
+        _ceiling = ceiling;
+        _weaponTex = weaponTex;
         _fogEnd = fogEnd;
-
-        _wallTexPix = wallTexPix;
-        _wallTexW = wallTexW;
-        _wallTexH = wallTexH;
-        _doorTexPix = doorTexPix;
-        _doorTexW = doorTexW;
-        _doorTexH = doorTexH;
-        _floorTexPix = floorTexPix;
-        _floorTexW = floorTexW;
-        _floorTexH = floorTexH;
-        _ceilTexPix = ceilTexPix;
-        _ceilTexW = ceilTexW;
-        _ceilTexH = ceilTexH;
 
         _fbTex = new Texture2D(gd, RW, RH);
 
         _pixel = new Texture2D(gd, 1, 1);
         _pixel.SetData(new[] { Color.White });
-
-        _weaponTex = weaponTex;
-
-        _destRect = new Rectangle(0, 0, RW * 2, RH * 2);
     }
 
     // ── Main render entry ─────────────────────────────────────────────────
 
-    public void Render(GameTime gameTime, ICamera camera, IMap map, IEnumerable<IBillboard> billboards)
+    public void Render(ICamera camera, IMap map, IEnumerable<IBillboard> billboards, WeaponPose weapon)
     {
-        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        var raiseTarget = WeaponRaiseTarget ? 1f : 0f;
-        _weaponRaise += (raiseTarget - _weaponRaise) * Math.Min(1f, dt * 12f);
-
-        DrawCeiling(camera);
-        DrawFloor(camera);
+        DrawPlane(camera, _ceiling, 0, RH / 2, ceiling: true);
+        DrawPlane(camera, _floor, RH / 2, RH, ceiling: false);
         CastWalls(camera, map);
         RenderBillboards(camera, billboards);
 
         _fbTex.SetData(_fb);
 
-        _sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque,
-            SamplerState.PointClamp, null, null);
-        _sb.Draw(_fbTex, _destRect, Color.White);
+        _sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp);
+        _sb.Draw(_fbTex, new Rectangle(0, 0, ScreenW, ScreenH), Color.White);
         _sb.End();
 
-        DrawWeapon();
+        DrawWeapon(weapon);
 
-        if (MuzzleFlash > 0)
+        if (weapon.Flash > 0)
         {
             _sb.Begin();
-            var alpha = (byte)(MuzzleFlash * 180);
-            _sb.Draw(_pixel, new Rectangle(0, 0, RW * 2, RH * 2),
-                new Color(255, 255, 255, (int)alpha));
+            var alpha = (int)(weapon.Flash * 180);
+            _sb.Draw(_pixel, new Rectangle(0, 0, ScreenW, ScreenH), new Color(255, 255, 255, alpha));
             _sb.End();
-            MuzzleFlash = Math.Max(0, MuzzleFlash - dt * 6f);
         }
     }
+
+    private float Fog(double dist) => (float)Math.Clamp(1.0 - (dist - FogStart) / (_fogEnd - FogStart), 0, 1);
+
+    // Torch-light warm tint that fades out a few tiles away.
+    private static float Warmth(double dist) => (float)Math.Clamp(0.3 - dist * 0.04, 0, 0.3);
 
     // ── Ceiling / floor projection ────────────────────────────────────────
 
-    private void DrawCeiling(ICamera camera)
+    private void DrawPlane(ICamera camera, PixelTexture tex, int yStart, int yEnd, bool ceiling)
     {
         var half = RH / 2;
 
@@ -143,9 +101,9 @@ public class RaycasterRenderer : IDisposable
         var rayDirX1 = camera.DirX + camera.PlaneX;
         var rayDirY1 = camera.DirY + camera.PlaneY;
 
-        for (var y = 0; y < half; y++)
+        for (var y = yStart; y < yEnd; y++)
         {
-            var p = half - y;
+            var p = ceiling ? half - y : y - half;
             if (p == 0) p = 1;
 
             var rowDist = 0.5 * RH / p;
@@ -156,7 +114,7 @@ public class RaycasterRenderer : IDisposable
             var floorX = camera.PosX + rowDist * rayDirX0;
             var floorY = camera.PosY + rowDist * rayDirY0;
 
-            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (_fogEnd - FogStart), 0, 1);
+            var fog = Fog(rowDist);
 
             var rowOff = y * RW;
             for (var x = 0; x < RW; x++)
@@ -164,53 +122,10 @@ public class RaycasterRenderer : IDisposable
                 var fx = floorX - Math.Floor(floorX);
                 var fy = floorY - Math.Floor(floorY);
 
-                var tx = Math.Clamp((int)(fx * _ceilTexW), 0, _ceilTexW - 1);
-                var ty = Math.Clamp((int)(fy * _ceilTexH), 0, _ceilTexH - 1);
+                var tx = Math.Clamp((int)(fx * tex.Width), 0, tex.Width - 1);
+                var ty = Math.Clamp((int)(fy * tex.Height), 0, tex.Height - 1);
 
-                var raw = _ceilTexPix[ty * _ceilTexW + tx];
-
-                _fb[rowOff + x] = new Color((byte)(raw.R * fog), (byte)(raw.G * fog), (byte)(raw.B * fog));
-
-                floorX += stepX;
-                floorY += stepY;
-            }
-        }
-    }
-
-    private void DrawFloor(ICamera camera)
-    {
-        var half = RH / 2;
-
-        var rayDirX0 = camera.DirX - camera.PlaneX;
-        var rayDirY0 = camera.DirY - camera.PlaneY;
-        var rayDirX1 = camera.DirX + camera.PlaneX;
-        var rayDirY1 = camera.DirY + camera.PlaneY;
-
-        for (var y = half; y < RH; y++)
-        {
-            var p = y - half;
-            if (p == 0) p = 1;
-
-            var rowDist = 0.5 * RH / p;
-
-            var stepX = rowDist * (rayDirX1 - rayDirX0) / RW;
-            var stepY = rowDist * (rayDirY1 - rayDirY0) / RW;
-
-            var floorX = camera.PosX + rowDist * rayDirX0;
-            var floorY = camera.PosY + rowDist * rayDirY0;
-
-            var fog = (float)Math.Clamp(1.0 - (rowDist - FogStart) / (_fogEnd - FogStart), 0, 1);
-
-            var rowOff = y * RW;
-            for (var x = 0; x < RW; x++)
-            {
-                var fx = floorX - Math.Floor(floorX);
-                var fy = floorY - Math.Floor(floorY);
-
-                var tx = Math.Clamp((int)(fx * _floorTexW), 0, _floorTexW - 1);
-                var ty = Math.Clamp((int)(fy * _floorTexH), 0, _floorTexH - 1);
-
-                var raw = _floorTexPix[ty * _floorTexW + tx];
+                var raw = tex.Pixels[ty * tex.Width + tx];
 
                 _fb[rowOff + x] = new Color((byte)(raw.R * fog), (byte)(raw.G * fog), (byte)(raw.B * fog));
 
@@ -266,34 +181,30 @@ public class RaycasterRenderer : IDisposable
             var drawTop = Math.Max(0, RH / 2 - wallH / 2);
             var drawBot = Math.Min(RH - 1, RH / 2 + wallH / 2);
 
-            var isDoor = hitTile == Tile.Exit;
-            var texPix = isDoor ? _doorTexPix : _wallTexPix;
-            var texSzW = isDoor ? _doorTexW : _wallTexW;
-            var texSzH = isDoor ? _doorTexH : _wallTexH;
+            var tex = hitTile == Tile.Exit ? _door : _wall;
 
             var wallX = side == 0
                 ? camera.PosY + perpDist * rayDY
                 : camera.PosX + perpDist * rayDX;
             wallX -= Math.Floor(wallX);
-            var texX = (int)(wallX * texSzW);
+            var texX = (int)(wallX * tex.Width);
             if ((side == 0 && rayDX > 0) || (side == 1 && rayDY < 0))
-                texX = texSzW - texX - 1;
-            texX = Math.Clamp(texX, 0, texSzW - 1);
+                texX = tex.Width - texX - 1;
+            texX = Math.Clamp(texX, 0, tex.Width - 1);
 
-            var fog = (float)Math.Clamp(1.0 - (perpDist - FogStart) / (_fogEnd - FogStart), 0, 1);
             var sideFactor = side == 0 ? 1.0f : 0.6f;
-            var bright = fog * sideFactor;
-            var warmth = (float)Math.Clamp(0.3 - perpDist * 0.04, 0, 0.3f);
+            var bright = Fog(perpDist) * sideFactor;
+            var warmth = Warmth(perpDist);
 
-            var step = (double)texSzH / wallH;
+            var step = (double)tex.Height / wallH;
             var texY = drawTop > RH / 2 - wallH / 2
                 ? (drawTop - (RH / 2 - wallH / 2)) * step
                 : 0;
 
             for (var y = drawTop; y <= drawBot; y++)
             {
-                var ty = Math.Clamp((int)texY, 0, texSzH - 1);
-                var raw = texPix[ty * texSzW + texX];
+                var ty = Math.Clamp((int)texY, 0, tex.Height - 1);
+                var raw = tex.Pixels[ty * tex.Width + texX];
 
                 var r = (byte)Math.Clamp(raw.R * bright + warmth * 200, 0, 255);
                 var g = (byte)Math.Clamp(raw.G * bright + warmth * 120, 0, 255);
@@ -313,9 +224,7 @@ public class RaycasterRenderer : IDisposable
         foreach (var b in billboards)
         {
             if (!b.IsVisible) continue;
-            var dx = b.PosX - camera.PosX;
-            var dy = b.PosY - camera.PosY;
-            list.Add((b, dx * dx + dy * dy));
+            list.Add((b, Collision.DistSq(b.PosX, b.PosY, camera.PosX, camera.PosY)));
         }
         list.Sort((a, b) => b.distSq.CompareTo(a.distSq));
         foreach (var (b, _) in list)
@@ -341,8 +250,8 @@ public class RaycasterRenderer : IDisposable
         var drawLeft = screenX - screenW / 2;
         var drawRight = screenX + screenW / 2;
 
-        var fog    = (float)Math.Clamp(1.0 - (transY - FogStart) / (_fogEnd - FogStart), 0, 1);
-        var warmth = (float)Math.Clamp(0.3 - transY * 0.04, 0, 0.3f);
+        var fog    = Fog(transY);
+        var warmth = Warmth(transY);
 
         for (var col = Math.Max(0, drawLeft); col < Math.Min(RW, drawRight); col++)
         {
@@ -362,13 +271,6 @@ public class RaycasterRenderer : IDisposable
                 var r = (byte)Math.Clamp(c.R * fog + warmth * 180, 0, 255);
                 var g = (byte)Math.Clamp(c.G * fog + warmth * 90, 0, 255);
                 var bv = (byte)Math.Clamp(c.B * fog, 0, 255);
-
-                if (b.ApplyHurtTint)
-                {
-                    r  = (byte)Math.Min(255, r + 80);
-                    g  = (byte)Math.Max(0, g - 40);
-                    bv = (byte)Math.Max(0, bv - 40);
-                }
 
                 _fb[row * RW + col] = new Color(r, g, bv, c.A);
             }
@@ -438,32 +340,26 @@ public class RaycasterRenderer : IDisposable
 
     // ── Weapon sprite ─────────────────────────────────────────────────────
 
-    private void DrawWeapon()
+    private void DrawWeapon(WeaponPose weapon)
     {
-        if (_weaponTex == null) return;
-
-        const int screenW = RW * 2;
-        const int screenH = RH * 2;
-
         // Scale so the weapon occupies ~50% of screen height
-        float scale = screenH * 0.50f / _weaponTex.Height;
-        int dw = (int)(_weaponTex.Width  * scale);
-        int dh = (int)(_weaponTex.Height * scale);
+        var scale = ScreenH * 0.50f / _weaponTex.Height;
+        var dw = (int)(_weaponTex.Width  * scale);
+        var dh = (int)(_weaponTex.Height * scale);
 
         // Bob dampens to 20% when fully raised (steady hands for a photo)
-        var bobAmp = 1f - _weaponRaise * 0.8f;
-        var bobY = (float)Math.Sin(WeaponBobPhase)       * 10f * bobAmp;
-        var bobX = (float)Math.Sin(WeaponBobPhase * 0.5) *  5f * bobAmp;
+        var bobAmp = 1f - weapon.Raise * 0.8f;
+        var bobY = (float)Math.Sin(weapon.BobPhase)       * 10f * bobAmp;
+        var bobX = (float)Math.Sin(weapon.BobPhase * 0.5) *  5f * bobAmp;
 
         // Raised: bottom of sprite aligns with bottom of screen.
         // Lowered: sprite slides 150 px further down so hands are mostly off-screen.
-        var slideY = (int)((1f - _weaponRaise) * 150f);
+        var slideY = (int)((1f - weapon.Raise) * 150f);
 
-        int x = (screenW - dw) / 2 + (int)bobX;
-        int y = screenH - dh + slideY + (int)bobY;
+        var x = (ScreenW - dw) / 2 + (int)bobX;
+        var y = ScreenH - dh + slideY + (int)bobY;
 
-        _sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
-            SamplerState.PointClamp, null, null);
+        _sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
         _sb.Draw(_weaponTex, new Rectangle(x, y, dw, dh), Color.White);
         _sb.End();
     }

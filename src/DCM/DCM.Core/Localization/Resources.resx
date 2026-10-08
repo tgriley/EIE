@@ -142,7 +142,6 @@
     <data name="Paused"><value>PAUSED</value></data>
     <data name="YouEscaped"><value>YOU ESCAPED!</value></data>
     <data name="YouDied"><value>YOU DIED</value></data>
-    <data name="NewBest"><value>NEW BEST!</value></data>
     <data name="ResetSave"><value>RESET SAVE</value></data>
     <data name="Confirm"><value>CONFIRM</value></data>
     <data name="Cancel"><value>CANCEL</value></data>
@@ -151,7 +150,31 @@
     <data name="Fullscreen"><value>FULLSCREEN</value></data>
     <data name="On"><value>ON</value></data>
     <data name="Off"><value>OFF</value></data>
-    <data name="Story"><value>STORY</value></data>
-    <data name="Endless"><value>ENDLESS</value></data>
-    <data name="SelectMode"><value>SELECT MODE</value></data>
+    <data name="Objective"><value>Find the exit and escape!</value></data>
+    <data name="ControlsMove" xml:space="preserve"><value>W A S D  -  Move</value></data>
+    <data name="ControlsRun" xml:space="preserve"><value>Shift    -  Run</value></data>
+    <data name="ControlsLook" xml:space="preserve"><value>Mouse    -  Look</value></data>
+    <data name="ControlsCamera" xml:space="preserve"><value>RClick   -  Camera</value></data>
+    <data name="ControlsPhoto" xml:space="preserve"><value>LClick   -  Photo</value></data>
+    <data name="ControlsPause" xml:space="preserve"><value>Esc      -  Pause</value></data>
+    <data name="Time"><value>TIME</value></data>
+    <data name="Skip"><value>SKIP</value></data>
+    <data name="LevelComplete"><value>LEVEL COMPLETE</value></data>
+    <data name="ChooseBuff"><value>CHOOSE A BUFF</value></data>
+    <data name="YourStats"><value>YOUR STATS</value></data>
+    <data name="Level"><value>LV</value></data>
+    <data name="BuffRunSpeed"><value>RUN SPEED</value></data>
+    <data name="BuffRunSpeedDesc"><value>+0.25 sprint speed</value></data>
+    <data name="BuffMaxStamina"><value>STAMINA</value></data>
+    <data name="BuffMaxStaminaDesc"><value>+0.25s max stamina</value></data>
+    <data name="BuffMaxHealth"><value>MAX HEALTH</value></data>
+    <data name="BuffMaxHealthDesc"><value>+15 max health, keeps hp %</value></data>
+    <data name="BuffStaminaRegen"><value>STAMINA REGEN</value></data>
+    <data name="BuffStaminaRegenDesc"><value>+15% stamina regen</value></data>
+    <data name="BuffCameraCooldown"><value>FLASH COOLDOWN</value></data>
+    <data name="BuffCameraCooldownDesc"><value>-8% flash cooldown</value></data>
+    <data name="BuffSightRange"><value>SIGHT RANGE</value></data>
+    <data name="BuffSightRangeDesc"><value>+0.75 tiles sight and minimap</value></data>
+    <data name="BuffStunDuration"><value>STUN DURATION</value></data>
+    <data name="BuffStunDurationDesc"><value>+0.5s flash stun</value></data>
 </root>

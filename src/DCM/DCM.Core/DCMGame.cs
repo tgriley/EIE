@@ -1,12 +1,11 @@
 #nullable enable
 using DCM.Core.Audio;
 using DCM.Core.Configuration;
-using DCM.Core.Entities;
+using DCM.Core.Input;
 using DCM.Core.Persistence;
-using DCM.Core.Rendering;
 using DCM.Core.Screens;
 using DCM.Core.Services;
-using DCM.Core.World;
+using DCM.Core.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
@@ -24,13 +23,16 @@ public class DCMGame : Game
     public static int LogicalH => Configuration.Display.LogicalHeight;
 
     private readonly GraphicsDeviceManager _graphics;
+    private readonly GameStateStore _state;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D _screen = null!;
     private IGameScreen _currentScreen = null!;
+    private UIPainter _painter = null!;
     private SoundEffect _clickSound = null!;
     private PlaySounds _playSounds = null!;
+    private KeyboardState _prevKeyboard;
     private MouseState _prevMouse;
-    private readonly GameStateStore _state;
+    private GamePadState _prevPad;
 
     public DCMGame()
     {
@@ -49,86 +51,41 @@ public class DCMGame : Game
         Window.Title = "Find the Exit";
     }
 
-    protected override void Initialize()
-    {
-        base.Initialize();
-    }
-
     protected override void LoadContent()
     {
         _state.Load();
-        if (_state.Settings.IsFullscreen)
-        {
-            _graphics.IsFullScreen = true;
-            _graphics.ApplyChanges();
-        }
+        if (_state.Settings.IsFullscreen) SetFullscreen(true);
 
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _screen = new RenderTarget2D(GraphicsDevice, LogicalW, LogicalH);
-        var font      = Content.Load<SpriteFont>("Fonts/Hud");
-        var titleFont  = Content.Load<SpriteFont>("Fonts/MenuTitle");
-        var titleFont2 = Content.Load<SpriteFont>("Fonts/MenuTitle2");
+        _painter = new UIPainter(_spriteBatch, Content.Load<SpriteFont>("Fonts/Hud"), GraphicsDevice);
         _clickSound = SoundSynth.CreateClick();
         _playSounds = SoundSynth.CreatePlaySounds();
 
-        IGameScreen CreateMenu() =>
-            new MenuScreen(_spriteBatch, font, titleFont, titleFont2, GraphicsDevice, CreateModeSelect, CreateSettings, _clickSound);
+        var screens = new ScreenFactory(new UIContext(_painter, _clickSound), GraphicsDevice, Content,
+            Configuration, _state, _playSounds,
+            Content.Load<SpriteFont>("Fonts/MenuTitle"), Content.Load<SpriteFont>("Fonts/MenuTitle2"),
+            SetFullscreen);
+        _currentScreen = screens.Menu();
+    }
 
-        IGameScreen CreateModeSelect() =>
-            new ModeSelectScreen(_spriteBatch, font, GraphicsDevice, CreateIntro, CreateEndlessRun, CreateMenu, _clickSound, _state.Progress);
-
-        // Each run gets a fresh base seed; stage N within a run is
-        // deterministic so a "next level" retry after death would rebuild the
-        // same map for the same run.
-        IGameScreen CreateEndlessRun() =>
-            CreateEndlessStage(0, Random.Shared.Next(), 100, new PlayerBuffs());
-
-        // Completing a stage goes through a buff pick before the next stage;
-        // the shared PlayerBuffs accumulates for the whole run.
-        IGameScreen CreateEndlessStage(int stage, int runSeed, int health, PlayerBuffs buffs) =>
-            new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                stage, CreateMenu,
-                h => new BuffSelectScreen(_spriteBatch, font, GraphicsDevice, buffs, h,
-                    h2 => CreateEndlessStage(stage + 1, runSeed, h2, buffs), _clickSound),
-                _clickSound, _playSounds, health,
-                MapGenerator.Generate(stage, runSeed + stage), endless: true, buffs: buffs,
-                progress: _state.Progress, saveState: () => { _ = _state.Save(); });
-
-        IGameScreen CreateIntro() =>
-            new IntroScreen(_spriteBatch, font, titleFont, GraphicsDevice, Content,
-                () => CreatePlay(0), CreateMenu, _clickSound);
-
-        IGameScreen CreateSettings() =>
-            new SettingsScreen(_spriteBatch, font, GraphicsDevice, CreateMenu, _clickSound, _state.Settings,
-                () => { _state.Settings.ToggleMute(); _ = _state.Save(); },
-                () =>
-                {
-                    _state.Settings.ToggleFullscreen();
-                    _graphics.IsFullScreen = _state.Settings.IsFullscreen;
-                    _graphics.ApplyChanges();
-                    _ = _state.Save();
-                },
-                () => { _state.Progress.Reset(); _ = _state.Save(); });
-
-        IGameScreen CreatePlay(int levelIndex, int startHealth = 100, PlayerBuffs? buffs = null)
-        {
-            var runBuffs = buffs ?? new PlayerBuffs();
-            Func<int, IGameScreen>? nextLevel = levelIndex < Map.LevelCount - 1
-                ? health => new BuffSelectScreen(_spriteBatch, font, GraphicsDevice, runBuffs, health,
-                    h => CreatePlay(levelIndex + 1, h, runBuffs), _clickSound)
-                : null;
-            return new PlayScreen(_spriteBatch, font, GraphicsDevice, Content,
-                levelIndex, CreateMenu, nextLevel, _clickSound, _playSounds, startHealth, buffs: runBuffs,
-                progress: _state.Progress, saveState: () => { _ = _state.Save(); });
-        }
-
-        _currentScreen = CreateMenu();
+    private void SetFullscreen(bool fullscreen)
+    {
+        _graphics.IsFullScreen = fullscreen;
+        _graphics.ApplyChanges();
     }
 
     protected override void Update(GameTime gameTime)
     {
+        var keyboard = Keyboard.GetState();
         var mouse = ToLogical(Mouse.GetState());
-        var next = _currentScreen.Update(gameTime, mouse, _prevMouse);
+        var pad = GamePad.GetState(PlayerIndex.One, GamePadDeadZone.None);
+        var input = new InputSnapshot(keyboard, _prevKeyboard, mouse, _prevMouse, pad, _prevPad);
+        _prevKeyboard = keyboard;
+        _prevMouse = mouse;
+        _prevPad = pad;
+
+        var next = _currentScreen.Update(gameTime, input);
 
         if (next == null)
         {
@@ -143,13 +100,12 @@ public class DCMGame : Game
         }
 
         IsMouseVisible = _currentScreen.IsMouseVisible;
-        _prevMouse = mouse;
         base.Update(gameTime);
     }
 
     protected override void OnDeactivated(object sender, EventArgs args)
     {
-        (_currentScreen as PlayScreen)?.OnFocusLost();
+        _currentScreen?.OnFocusLost();
         base.OnDeactivated(sender, args);
     }
 
@@ -184,6 +140,7 @@ public class DCMGame : Game
     {
         _currentScreen?.Dispose();
         _screen?.Dispose();
+        _painter?.Dispose();
         _clickSound?.Dispose();
         _playSounds?.Dispose();
         base.UnloadContent();

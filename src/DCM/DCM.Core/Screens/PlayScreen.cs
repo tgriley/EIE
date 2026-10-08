@@ -1,5 +1,4 @@
 #nullable enable
-using DCM.Core;
 using DCM.Core.Audio;
 using DCM.Core.Configuration;
 using DCM.Core.Entities;
@@ -9,8 +8,6 @@ using DCM.Core.Services;
 using DCM.Core.UI;
 using DCM.Core.World;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Audio;
-using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -22,108 +19,69 @@ namespace DCM.Core.Screens;
 public class PlayScreen : IGameScreen
 {
     private readonly GraphicsDevice _gd;
-    private readonly RaycasterRenderer _renderer;
-    private readonly HUD _hud;
-    private readonly Player _player;
+    private readonly UIPainter _painter;
+    private readonly GameplayConfiguration _config;
+    private readonly PlaySounds _sounds;
+    private readonly LevelCompletionService _completion;
+    private readonly Func<IGameScreen> _toMainMenu;
+    private readonly Func<int, IGameScreen> _toNextLevel;
+    private readonly int _stage;
+
     private readonly Map _map;
+    private readonly Player _player;
     private readonly List<Enemy> _enemies;
     private readonly List<IPickup> _pickups;
-    private readonly Func<IGameScreen> _toLevelSelect;
-    private readonly Func<int, IGameScreen>? _toNextLevel;
-    private readonly PlaySounds _sounds;
+    private readonly CameraFlash _flash;
     private readonly FogOfWar _fog;
-    private readonly PlayerBuffs _buffs;
-    private readonly LevelProgress _progress;
-    private readonly LevelCompletionService _completion;
-    private readonly GameplayConfiguration _gameplayConfig;
-    private readonly float _cameraUseDuration;
-    private readonly bool _hasNextLevel;
-    private readonly bool _endless;
-    private readonly int _levelIndex;
+
+    private readonly RaycasterRenderer _renderer;
+    private readonly Minimap _minimap;
+    private readonly GameplayHud _hud;
+    private readonly PauseOverlay _pauseOverlay;
+    private readonly EndOverlay _endOverlay;
 
     private bool _gameOver;
     private bool _won;
     private bool _paused;
-    private bool _prevEsc;
     private bool _firstInputFrame = true;
-    private bool _cameraRaised;
-    private bool _cameraFired;
-    private float _cameraCooldown;
-    private float _cameraRaiseTimer;
     private float _elapsed;
-    private bool _isNewBest;
-    private GamePadState _prevGamePad;
+    private float _bobPhase;
+    private Point _mousePos;
 
-    public bool IsMouseVisible => _paused || _gameOver || _won;
+    public bool IsMouseVisible => _paused || IsEnded;
 
-    public PlayScreen(SpriteBatch sb, SpriteFont font, GraphicsDevice gd, ContentManager content,
-        int levelIndex, Func<IGameScreen> toLevelSelect, Func<int, IGameScreen>? toNextLevel,
-        SoundEffect clickSound, PlaySounds sounds, int startHealth = 100,
-        Map? map = null, bool endless = false, PlayerBuffs? buffs = null,
-        LevelProgress? progress = null, Action? saveState = null)
+    private bool IsEnded => _gameOver || _won;
+
+    public PlayScreen(UIContext ui, GraphicsDevice gd, StageSetup setup, PlaySounds sounds,
+        GameplayConfiguration config, LevelCompletionService completion,
+        Func<IGameScreen> toMainMenu, Func<int, IGameScreen> toNextLevel)
     {
-        _gd            = gd;
-        _levelIndex    = levelIndex;
-        _endless       = endless;
-        _map           = map ?? Map.GetLevel(levelIndex);
-        _toLevelSelect = toLevelSelect;
-        _toNextLevel   = toNextLevel;
-        _hasNextLevel  = toNextLevel != null;
-        _sounds        = sounds;
-        _buffs         = buffs ?? new PlayerBuffs();
-        _progress      = progress ?? new LevelProgress();
-        _completion    = new LevelCompletionService(_progress, saveState ?? (() => { }));
-        _gameplayConfig = GameConfiguration.Default.Gameplay;
-        _cameraUseDuration = _buffs.CameraCooldown;
+        _gd          = gd;
+        _painter     = ui.Painter;
+        _config      = config;
+        _sounds      = sounds;
+        _completion  = completion;
+        _toMainMenu  = toMainMenu;
+        _toNextLevel = toNextLevel;
+        _stage       = setup.Stage;
+        _map         = setup.Map;
 
-        var sheets     = new EnemySpriteSheet[EnemyCatalog.SpriteCount];
-        var hideSheets = new EnemySpriteSheet[EnemyCatalog.HideSpriteCount];
-        for (var i = 0; i < sheets.Length; i++)
-        {
-            var (pix, w, h) = LoadPixels(content, $"SpritesheetEnemy{i}");
-            sheets[i] = new EnemySpriteSheet(pix, w, h, 6);
-        }
-        for (var i = 0; i < hideSheets.Length; i++)
-        {
-            var (pix, w, h) = LoadPixels(content, $"SpritesheetEnemy{i}_hide");
-            hideSheets[i] = new EnemySpriteSheet(pix, w, h, 6);
-        }
-
-        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, startHealth, _buffs);
+        var buffs = setup.Buffs;
+        _player = new Player(_map.StartX, _map.StartY, _map.StartAngle, setup.StartHealth, buffs);
         _player.OnDamaged = () => _sounds.PlayerOuch.Play();
         _player.OnDied    = () => _sounds.PlayerDeath.Play();
 
-        _pickups = new List<IPickup> { };
+        _enemies = LevelFactory.CreateEnemies(_map, setup.Assets, buffs.StunDuration);
+        _pickups = LevelFactory.CreatePickups(_map);
+        _flash   = new CameraFlash(buffs.CameraCooldown, config.CameraRaiseTime);
+        _fog     = new FogOfWar(_map.Width, _map.Height, buffs.MinimapReveal);
 
-        _enemies = new List<Enemy>();
-        foreach (var spawn in _map.EnemySpawns)
-        {
-            if (!_map.IsValidSpawn(spawn.x, spawn.y)) continue;
-            var si = spawn.type % EnemyCatalog.SpriteCount;
-            var enemy = new Enemy(spawn.x, spawn.y, sheets[si], hideSheets[si % hideSheets.Length],
-                cameraImmune: EnemyCatalog.IsCameraImmune(spawn.type),
-                stunDuration: _buffs.StunDuration);
-            enemy.OnHurt = () => _sounds.EnemyOuch.Play();
-            enemy.OnDied = () => _sounds.EnemyDeath.Play();
-            _enemies.Add(enemy);
-        }
-
-        var texVariant = _map.TextureVariant;
-
-        var (wallPix,  wallW,  wallH)  = LoadPixels(content, $"TextureWall{texVariant}");
-        var (doorPix,  doorW,  doorH)  = LoadPixels(content, "TextureDoor0");
-        var (floorPix, floorW, floorH) = LoadPixels(content, $"TextureFloor{texVariant}");
-        var (ceilPix,  ceilW,  ceilH)  = LoadPixels(content, $"TextureCeiling{texVariant}");
-        var weaponTex = content.Load<Texture2D>("Camera");
-
-        _renderer = new RaycasterRenderer(gd,
-            wallPix,  wallW,  wallH,
-            doorPix,  doorW,  doorH,
-            floorPix, floorW, floorH,
-            ceilPix,  ceilW,  ceilH,
-            weaponTex, _buffs.SightRange);
-        _hud = new HUD(sb, font, gd, clickSound, _buffs);
-        _fog = new FogOfWar(_map.Width, _map.Height, _buffs.MinimapReveal);
+        var a = setup.Assets;
+        _renderer     = new RaycasterRenderer(gd, a.Wall, a.Door, a.Floor, a.Ceiling, a.Weapon, buffs.SightRange);
+        _minimap      = new Minimap(_painter);
+        _hud          = new GameplayHud(_painter, buffs);
+        _pauseOverlay = new PauseOverlay(ui);
+        _endOverlay   = new EndOverlay(ui);
 
         RecenterMouse();
     }
@@ -133,142 +91,116 @@ public class PlayScreen : IGameScreen
     // outside the game. The end overlays already leave the mouse free.
     public void OnFocusLost()
     {
-        if (!_gameOver && !_won) _paused = true;
+        if (!IsEnded) _paused = true;
     }
 
     // Park the OS cursor at the window centre. Screens receive mouse coords in
-    // logical space, so the window centre reads back as the logical centre
-    // (RW, RH) and the per-frame look delta stays zero when the mouse is still.
+    // logical space, so the window centre reads back as the logical centre and
+    // the per-frame look delta stays zero when the mouse is still.
     private void RecenterMouse()
     {
         var pp = _gd.PresentationParameters;
         Mouse.SetPosition(pp.BackBufferWidth / 2, pp.BackBufferHeight / 2);
     }
 
-    public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
+    private int ReadMouseLookDelta(InputSnapshot input)
     {
-        var kb = Keyboard.GetState();
-        var gp = GamePad.GetState(PlayerIndex.One, GamePadDeadZone.None);
-        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        var lookScale = _gd.PresentationParameters.BackBufferWidth / (float)UITheme.ScreenW;
+        var delta = _firstInputFrame ? 0 : (int)((input.Mouse.X - UITheme.ScreenW / 2) * lookScale);
+        _firstInputFrame = false;
+        RecenterMouse();
+        return delta;
+    }
 
-        var escDown          = kb.IsKeyDown(Keys.Escape);
-        var startJustPressed = gp.Buttons.Start == ButtonState.Pressed &&
-                               _prevGamePad.Buttons.Start != ButtonState.Pressed;
-        if ((escDown && !_prevEsc || startJustPressed) && !_gameOver && !_won)
+    public IGameScreen? Update(GameTime gameTime, InputSnapshot input)
+    {
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _mousePos = input.MousePosition;
+
+        if (PlayerInputMapper.PausePressed(input) && !IsEnded)
             _paused = !_paused;
-        _prevEsc = escDown;
 
         if (_paused)
         {
-            var action = _hud.UpdatePause(gameTime, mouse, prevMouse);
-            if (action == HudAction.Resume)   _paused = false;
-            if (action == HudAction.MainMenu) return _toLevelSelect();
-            if (action == HudAction.Quit)     return null;
+            switch (_pauseOverlay.Update(gameTime, input))
+            {
+                case PauseAction.Resume:   _paused = false; break;
+                case PauseAction.MainMenu: return _toMainMenu();
+                case PauseAction.Quit:     return null;
+            }
         }
-        else if (_gameOver || _won)
+        else if (IsEnded)
         {
             if (_gameOver) _player.UpdateDeathSpin(dt);
-            var action = _hud.UpdateEnd(gameTime, mouse, prevMouse, _won, _hasNextLevel);
-            if (action == HudAction.NextLevel && _won) return _toNextLevel!(_player.Health);
-            if (action == HudAction.MainMenu)          return _toLevelSelect();
+            _flash.Update(dt, false, false);
+            switch (_endOverlay.Update(gameTime, input, _won))
+            {
+                case EndAction.NextLevel: return _toNextLevel(_player.Health);
+                case EndAction.MainMenu:  return _toMainMenu();
+            }
         }
         else
         {
-            _elapsed += dt;
-
-            var leftX  = Math.Abs(gp.ThumbSticks.Left.X)  > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Left.X  : 0f;
-            var leftY  = Math.Abs(gp.ThumbSticks.Left.Y)  > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Left.Y  : 0f;
-            var rightX = Math.Abs(gp.ThumbSticks.Right.X) > _gameplayConfig.StickDeadZone ? gp.ThumbSticks.Right.X : 0f;
-
-            var lookScale = _gd.PresentationParameters.BackBufferWidth / (float)DCMGame.LogicalW;
-            var mouseDeltaX = _firstInputFrame ? 0 : (int)((mouse.X - RaycasterRenderer.RW) * lookScale);
-            _firstInputFrame = false;
-            RecenterMouse();
-            mouseDeltaX += (int)(rightX * _gameplayConfig.ControllerLookSensitivity);
-
-            var moving = kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.S) ||
-                         kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.D) ||
-                         kb.IsKeyDown(Keys.Up) || kb.IsKeyDown(Keys.Down) ||
-                         leftX != 0 || leftY != 0;
-
-            _fog.Update(_player.PosX, _player.PosY, _map);
-            _player.Update(dt, _map, new PlayerInput(
-                kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up)   || leftY >  0,
-                kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down)  || leftY <  0,
-                kb.IsKeyDown(Keys.A)                             || leftX < 0,
-                kb.IsKeyDown(Keys.D)                             || leftX >  0,
-                kb.IsKeyDown(Keys.Left),
-                kb.IsKeyDown(Keys.Right),
-                kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) || gp.Triggers.Left > _gameplayConfig.TriggerThreshold,
-                mouseDeltaX,
-                _cameraRaised), _enemies);
-
-            if (moving)
-                _renderer.WeaponBobPhase += dt * _gameplayConfig.WeaponBobSpeed * _player.MovementRatio;
-
-            var raiseHeld   = mouse.RightButton == ButtonState.Pressed ||
-                              gp.Triggers.Right > _gameplayConfig.TriggerThreshold;
-            var shootJustPressed = mouse.LeftButton    == ButtonState.Pressed &&
-                                   prevMouse.LeftButton != ButtonState.Pressed ||
-                                   gp.Buttons.RightShoulder    == ButtonState.Pressed &&
-                                   _prevGamePad.Buttons.RightShoulder != ButtonState.Pressed;
-
-            if (_cameraCooldown > 0) _cameraCooldown -= dt;
-            if (!raiseHeld) { _cameraFired = false; _cameraRaiseTimer = 0f; }
-            _cameraRaised = raiseHeld && _cameraCooldown <= 0 && !_cameraFired;
-            _renderer.WeaponRaiseTarget = _cameraRaised;
-
-            if (_cameraRaised && _cameraRaiseTimer < _gameplayConfig.CameraRaiseTime)
-                _cameraRaiseTimer += dt;
-
-            var cameraReady    = _cameraRaised && _cameraRaiseTimer >= _gameplayConfig.CameraRaiseTime;
-            var flashJustFired = false;
-            if (cameraReady && shootJustPressed)
-            {
-                _renderer.MuzzleFlash = 1f;
-                _cameraCooldown = _cameraUseDuration;
-                _cameraFired = true;
-                _cameraRaiseTimer = 0f;
-                flashJustFired = true;
-                _sounds.CameraShutter.Play();
-            }
-
-            foreach (var p in _pickups) p.TryCollect(_player);
-            foreach (var e in _enemies) e.Update(gameTime, _player, _player, _map, _enemies, cameraReady, flashJustFired);
-
-            if (_player.IsDead) _gameOver = true;
-
-            if (_player.ReachedExit && !_won)
-            {
-                _won = true;
-                _sounds.Win.Play();
-                _isNewBest = _completion.Complete(_levelIndex, _elapsed, _endless, _hasNextLevel);
-            }
+            UpdateGameplay(gameTime, dt, input);
         }
 
-        _prevGamePad = gp;
         return this;
+    }
+
+    private void UpdateGameplay(GameTime gameTime, float dt, InputSnapshot input)
+    {
+        _elapsed += dt;
+
+        _fog.Update(_player.PosX, _player.PosY, _map);
+        _player.Update(dt, _map,
+            PlayerInputMapper.Movement(input, _config, ReadMouseLookDelta(input), _flash.IsRaised),
+            _enemies);
+        _bobPhase += dt * _config.WeaponBobSpeed * _player.MovementRatio;
+
+        _flash.Update(dt,
+            PlayerInputMapper.CameraRaiseHeld(input, _config),
+            PlayerInputMapper.CameraShootPressed(input));
+        if (_flash.JustFired) _sounds.CameraShutter.Play();
+
+        foreach (var p in _pickups)
+            if (p.TryCollect(_player)) _sounds.Pickup.Play();
+        foreach (var e in _enemies)
+            e.Update(gameTime, _player, _map, _enemies, _flash.IsReady, _flash.JustFired);
+
+        if (_player.IsDead) _gameOver = true;
+
+        if (_player.ReachedExit && !_won)
+        {
+            _won = true;
+            _sounds.Win.Play();
+            _completion.Complete(_stage);
+        }
     }
 
     public void Draw(GameTime gameTime)
     {
-        _renderer.Render(gameTime, _player, _map, _enemies.Concat<IBillboard>(_pickups));
-        _hud.Draw(gameTime, _player, _enemies, _map, _gameOver, _won, _paused, _hasNextLevel,
-            _elapsed, _endless ? float.MaxValue : _progress.GetBestTime(_levelIndex), _isNewBest,
-            _cameraCooldown, _cameraUseDuration, _player.SprintStamina, _fog);
-    }
+        _renderer.Render(_player, _map, _enemies.Concat<IBillboard>(_pickups), _flash.Pose(_bobPhase));
 
-    private static (Color[] pixels, int width, int height) LoadPixels(ContentManager content, string name)
-    {
-        var tex = content.Load<Texture2D>(name);
-        var pixels = new Color[tex.Width * tex.Height];
-        tex.GetData(pixels);
-        return (pixels, tex.Width, tex.Height);
+        _painter.Begin();
+        if (_paused)
+        {
+            _minimap.Draw(_player, _enemies, _pickups, _map, _fog);
+            _pauseOverlay.Draw(_mousePos);
+        }
+        else if (IsEnded)
+        {
+            _endOverlay.Draw(_mousePos, _won, _elapsed);
+        }
+        else
+        {
+            _minimap.Draw(_player, _enemies, _pickups, _map, _fog);
+            _hud.Draw(gameTime, _player, _flash, _elapsed);
+        }
+        _painter.End();
     }
 
     public void Dispose()
     {
         _renderer.Dispose();
-        _hud.Dispose();
     }
 }

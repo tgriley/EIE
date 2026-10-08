@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-"Find the Exit": a Doom-style first-person raycaster game built with MonoGame 3.8 (DesktopGL) on .NET 8, C#.
+"Find the Exit": a Doom-style first-person raycaster game built with MonoGame 3.8 (DesktopGL) on .NET 8, C#. Endless mode: procedurally generated stages, enemies you stun with a flash camera, and a buff pick between stages.
 
 ## Commands
 
@@ -27,6 +27,7 @@ There are no tests in this repository.
 - **`#nullable enable`** at the top of any file that returns or stores nullable reference types.
 - Enum members on separate lines.
 - No trailing comments, no summary XML docs.
+- Named constants instead of magic numbers; shared colours/sizes come from `UITheme`.
 
 ## Architecture
 
@@ -37,71 +38,52 @@ Two projects:
 
 ### Game loop and state
 
-`DCMGame` (DCM.Core/DCMGame.cs) is the MonoGame `Game` subclass. It holds a single `IGameScreen _currentScreen` and delegates every `Update`/`Draw` call to it. When `Update` returns a different screen object, `DCMGame` disposes the old one and switches; when it returns `null`, the game exits.
+`DCMGame` (DCM.Core/DCMGame.cs) is the MonoGame `Game` subclass. Everything draws to a fixed 1280×720 logical render target that is scaled to the window. Each frame it builds one `InputSnapshot` (keyboard, mouse mapped to logical coords, gamepad — current and previous) and passes it to the single `IGameScreen _currentScreen`. When `Update` returns a different screen object, `DCMGame` disposes the old one and switches; when it returns `null`, the game exits. Focus loss calls `IGameScreen.OnFocusLost()`.
 
-Screen transitions are wired via factory lambdas in `LoadContent` using mutually-recursive local functions:
-
-```csharp
-IGameScreen CreateMenu() => new MenuScreen(_spriteBatch, font, GraphicsDevice, CreatePlay);
-IGameScreen CreatePlay() => new PlayScreen(_spriteBatch, font, GraphicsDevice, Content, CreateMenu);
-```
+`Screens/ScreenFactory.cs` owns the shared services (`UIContext`, `GameStateStore`, `PlaySounds`, config) and wires all navigation: `Menu()` → `NewRun()` → `Stage(n)` → `BuffSelectScreen` → `Stage(n+1)`, plus `Settings()`. Settings changes go through `GameStateStore.Update(change)`, which applies and saves.
 
 ### Screens (`DCM.Core/Screens/`)
 
-**`IGameScreen`** — contract all screens implement:
-- `bool IsMouseVisible { get; }`
-- `IGameScreen? Update(GameTime, MouseState mouse, MouseState prevMouse)` — returns `this` to stay, a new screen to transition, or `null` to exit.
-- `void Draw(GameTime)`
-- `IDisposable`
+**`IGameScreen`** — `IsMouseVisible`, `Update(GameTime, InputSnapshot)` (returns `this`, a new screen, or `null`), `Draw(GameTime)`, default `OnFocusLost()`, `IDisposable`. Screens never poll `Mouse`/`Keyboard`/`GamePad` directly; they cache `input.MousePosition` in `Update` for hover drawing.
 
-**`MenuScreen`** — wraps `MainMenu`, returns a new `PlayScreen` on Start, `null` on Exit.
+**`MenuScreen`** (wraps `MainMenu`), **`SettingsScreen`** (sound/fullscreen toggles, reset-save with confirm), **`BuffSelectScreen`** (three rolled buff cards + skip, stats panel).
 
-**`PlayScreen`** — owns the full gameplay loop: loads content, manages `Player`, `List<Enemy>`, `RaycasterRenderer`, and `HUD`. Handles ESC-toggle pause, shooting (LMB), and end conditions (`_gameOver` / `_won`). Mouse centering (`Mouse.SetPosition`) happens here, not in `Player`. Accepts `Func<IGameScreen> toMenu` to navigate back to the menu from the end overlay.
+**`PlayScreen`** — one stage. Built from a `StageSetup` (stage index, `Map`, `LevelAssets`, start health, shared `PlayerBuffs`). Coordinates `Player`, enemies, pickups, `CameraFlash`, `FogOfWar`, the renderer and the UI pieces; handles pause, win/lose, and mouse-look recentering (`Mouse.SetPosition`). Input bindings live in `Input/PlayerInputMapper`, not here.
 
 ### Rendering — software raycaster, not 3D
 
-`Rendering/RaycasterRenderer.cs` is a classic DDA raycaster (Wolfenstein/Doom style): it writes pixels into a CPU-side `Color[]` frame buffer at a fixed internal resolution (`RW`=640 × `RH`=360), uploads it to a texture, and scales 2× to 1280×720. Walls/floor/ceiling are textured per-pixel with distance fog; enemies are billboard sprites depth-tested against a per-column Z-buffer. Textures are loaded via the content pipeline in `PlayScreen`; pixel data is extracted to `Color[]` arrays and passed to the renderer constructor — the renderer never samples GPU textures. Window size is derived from `RW`/`RH` constants.
+`Rendering/RaycasterRenderer.cs` is a classic DDA raycaster: it writes into a CPU-side `Color[]` frame buffer at `RW`=640 × `RH`=360, uploads it, and scales 2× to the 1280×720 canvas. Walls, floor and ceiling are textured per pixel with distance fog and warm tint; `IBillboard`s (enemies, pickups) are depth-tested against a per-column Z-buffer, sorted back to front. Textures are `PixelTexture` records (CPU pixel copies loaded by `LevelAssets`); the renderer never samples GPU textures. The held camera is drawn from a `WeaponPose` (raise, bob, flash) — the renderer holds no gameplay state.
 
-### World
+### World (`DCM.Core/World/`)
 
-`World/Map.cs` defines levels as hard-coded 16×16 `int[,]` tile grids (`Tile` constants: 0 empty, 1–3 wall variants, 9 exit), plus player start, enemy spawns, and torch positions. Positions use tile coordinates with doubles for sub-tile precision; entities spawn at tile center (+0.5). Implements `IMap`; `IsValidSpawn(x, y)` returns false for walls/exits and tiles fully enclosed by walls on all four sides.
+- **`MapGenerator`** — seeded BSP generator. Size, enemy count and immune/sensitive mix scale with stage. The same `(stage, seed)` always produces the same map (including exit and pickup placement, which use the seeded `Random` passed to `Map`).
+- **`Map`** — `int[,]` tiles (`Tile`: 0 empty, 1–3 wall variants, 9 exit), start pose, enemy spawns, texture variant, pickup spawn. Implements `IMap`.
+- **`LevelAssets`** loads textures and enemy sheets; **`LevelFactory`** builds enemies and pickups from a `Map`.
+- **`FogOfWar`** — tiles seen, for the minimap. **`Collision`** — shared entity radius and overlap test.
 
-### Entities
+### Entities (`DCM.Core/Entities/`)
 
-**`Player`** implements `ICamera` and `IDamageable`. Holds position, direction vector + camera plane (FOV), health, and attack/damage cooldowns. `Update(float dt, IMap map, PlayerInput input)` — takes a `PlayerInput` readonly struct; does not read MonoGame input directly.
+- **`Player`** (`IPlayerTarget`, `IHealable`) — movement, sprint stamina, damage cooldown, death spin. Takes `PlayerInput`; never reads devices.
+- **`Enemy`** — state machine Patrol/Chase/Attack/Flee/Dazed. Raising the camera while looking at a sensitive enemy makes it flee; firing the flash dazes it (overhead countdown). Camera-immune types (`EnemyCatalog`) ignore both and move slower.
+- **`CameraFlash`** — raise/settle/fire/cooldown state; exposes `IsRaised`, `IsReady`, `JustFired`, `ChargeFraction`, and the `WeaponPose`.
+- **`PlayerBuffs`** — per-run stacking levels. Each `BuffType` has one `BuffDefinition` row (value-by-level + display format); name/description come from resx keys `Buff{Type}` / `Buff{Type}Desc`.
+- **`HealthPickup`** (`IPickup`) — one per stage, heals 50.
 
-**`Enemy`** is a state machine (Patrol/Chase/Attack/Dead) with spritesheet animation. Constructor takes `EnemySpriteSheet` — per-enemy texture data. The renderer sets `Enemy.DistSq` for back-to-front sprite sorting. `Update(GameTime, IDamageable target, IMap map)`.
+### UI (`DCM.Core/UI/`)
 
-**`EnemySpriteSheet`** (`DCM.Core/Entities/EnemySpriteSheet.cs`) — holds `Color[] Pixels`, `Width`, `Height`, `FrameCount`, and computed `FrameWidth`. Five sheets (`SpritesheetEnemy0`–`4`) are loaded in `PlayScreen` and assigned round-robin to valid spawns.
+Immediate-mode `SpriteBatch` drawing through one shared **`UIPainter`** (from `UIContext`, created once in `DCMGame`). **`UITheme`** holds screen size, button size and palette.
 
-### Interfaces (`DCM.Core/Entities/`, `DCM.Core/World/`, `DCM.Core/Screens/`)
+- **`Button`** / **`ToggleButton`** — bounds + label; `IsClicked(input)`, hover-aware `Draw`.
+- **`ButtonMenu<TAction>`** — buttons bound to actions plus gamepad navigation (`MenuNavigator`) and click sound; `Update` returns the chosen action or `null`. Used by `MainMenu`, `PauseOverlay`, `EndOverlay`, `SettingsScreen`.
+- In play: **`GameplayHud`** (status bars, objective, timer, crosshair, controls hint, hurt flash), **`Minimap`**, **`PauseOverlay`**, **`EndOverlay`**.
 
-| Interface | Purpose |
-|---|---|
-| `IMap` | `GetTile`, `IsWall`, `IsExit`, `IsValidSpawn`, `Width`, `Height` |
-| `ICamera` | Read-only position + direction + camera plane (`PosX/Y`, `DirX/Y`, `PlaneX/Y`) |
-| `IDamageable` | `PosX`, `PosY`, `TakeDamage(int)` |
-| `IGameScreen` | Screen state machine contract (see Screens section) |
+### Persistence and services
 
-### Input
-
-`Input/PlayerInput.cs` — readonly struct with booleans for each action (`MoveForward`, `MoveBack`, `StrafeLeft`, `StrafeRight`, `TurnLeft`, `TurnRight`, `Running`) and `int MouseDeltaX`. Built in `PlayScreen.Update` from `Keyboard.GetState()` + raw mouse delta; passed into `Player.Update`.
-
-### UI
-
-`UI/MainMenu.cs`, `UI/HUD.cs`, `UI/Button.cs`, `UI/UIPainter.cs` — all immediate-mode drawing with `SpriteBatch`.
-
-**`UIPainter`** owns the shared 1×1 white pixel texture and wraps SpriteBatch Begin/End. Provides `DrawRect`, `DrawTextShadow`, `DrawLine`, `Measure`. All UI classes take a `UIPainter` instead of owning their own SpriteBatch/font/pixel.
-
-**`Button`** — `Rectangle` bounds + label. `IsClicked(mouse, prevMouse)` — mouse-released transition within bounds. `Draw(Point mousePos)` — hover-aware colours.
-
-**`HUD`** — `UpdatePause(mouse, prevMouse)` returns `Resume`/`Quit`; `UpdateEnd(mouse, prevMouse)` returns `MainMenu`. `Draw(...)` branches on `paused`/`gameOver`/`won` to show the appropriate overlay. The two Update methods are separate to prevent button-area overlap between the pause overlay (Resume + Quit) and the end overlay (Main Menu).
-
-**`MainMenu`** — `Update` returns `MenuAction`; `Draw` draws title + Start + Exit buttons.
+`Persistence/JsonGameSaveRepository` reads/writes `SaveData` at `%LOCALAPPDATA%/FindTheExit/save.json`. `Services/GameStateStore` holds `GameSettings` (mute, fullscreen) and `LevelProgress` (best endless stage).
 
 ### Localization
 
-`Localization/` uses .resx resources (`Resources.resx` + es-ES, fr-FR satellites) with `LocalizationManager` for culture discovery/switching. Add new strings to all three .resx files.
+All user-visible strings go through `GameText.Get(key)`, backed by `Localization/Resources.resx` with es-ES and fr-FR satellites. Add new strings to all three .resx files. Fonts cover Latin-1 only.
 
 ### Content pipeline
 

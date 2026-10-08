@@ -1,9 +1,8 @@
 #nullable enable
+using DCM.Core.Input;
 using DCM.Core.UI;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using System;
 
 namespace DCM.Core.Screens;
@@ -16,31 +15,25 @@ public class MenuScreen : IGameScreen
 
     public bool IsMouseVisible => true;
 
-    public MenuScreen(SpriteBatch sb, SpriteFont font, SpriteFont titleFont, SpriteFont titleFont2, GraphicsDevice gd,
-        Func<IGameScreen> createPlay, Func<IGameScreen> createSettings,
-        SoundEffect clickSound)
+    public MenuScreen(UIContext ui, SpriteFont titleFont, SpriteFont subtitleFont,
+        Func<IGameScreen> createPlay, Func<IGameScreen> createSettings)
     {
-        _menu           = new MainMenu(sb, font, titleFont, titleFont2, gd, clickSound);
+        _menu           = new MainMenu(ui, titleFont, subtitleFont);
         _createPlay     = createPlay;
         _createSettings = createSettings;
     }
 
-    public IGameScreen? Update(GameTime gameTime, MouseState mouse, MouseState prevMouse)
+    public IGameScreen? Update(GameTime gameTime, InputSnapshot input) => _menu.Update(gameTime, input) switch
     {
-        var action = _menu.Update(gameTime, mouse, prevMouse);
-        if (action == MenuAction.Start)    return _createPlay();
-        if (action == MenuAction.Settings) return _createSettings();
-        if (action == MenuAction.Exit)     return null;
-        return this;
-    }
+        MenuAction.Start    => _createPlay(),
+        MenuAction.Settings => _createSettings(),
+        MenuAction.Exit     => null,
+        _                   => this
+    };
 
-    public void Draw(GameTime gameTime)
-    {
-        _menu.Draw(gameTime);
-    }
+    public void Draw(GameTime gameTime) => _menu.Draw();
 
     public void Dispose()
     {
-        _menu.Dispose();
     }
 }

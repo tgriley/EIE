@@ -4,21 +4,17 @@ using System;
 namespace DCM.Core.Audio;
 
 public sealed record PlaySounds(
-    SoundEffect Gunshot,
     SoundEffect PlayerOuch,
     SoundEffect PlayerDeath,
-    SoundEffect EnemyOuch,
-    SoundEffect EnemyDeath,
+    SoundEffect Pickup,
     SoundEffect Win,
     SoundEffect CameraShutter) : IDisposable
 {
     public void Dispose()
     {
-        Gunshot.Dispose();
         PlayerOuch.Dispose();
         PlayerDeath.Dispose();
-        EnemyOuch.Dispose();
-        EnemyDeath.Dispose();
+        Pickup.Dispose();
         Win.Dispose();
         CameraShutter.Dispose();
     }

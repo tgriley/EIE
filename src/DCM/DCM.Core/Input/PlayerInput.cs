@@ -13,7 +13,7 @@ public readonly struct PlayerInput
     public readonly int MouseDeltaX;
 
     public PlayerInput(bool moveForward, bool moveBack, bool strafeLeft, bool strafeRight,
-        bool turnLeft, bool turnRight, bool running, int mouseDeltaX, bool cameraRaising = false)
+        bool turnLeft, bool turnRight, bool running, int mouseDeltaX, bool cameraRaising)
     {
         MoveForward = moveForward;
         MoveBack = moveBack;

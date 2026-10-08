@@ -1,7 +1,7 @@
 #nullable enable
 namespace DCM.Core.Entities;
 
-// Single source of truth for enemy types. The level JSON "type" field indexes
+// Single source of truth for enemy types. MapGenerator's spawn "type" indexes
 // into this table. Camera-immune types ignore the camera entirely (no flee, no
 // daze) and so have no "_hide" sprite sheet; those are the first HideSpriteCount
 // types, kept contiguous so the sheet arrays stay simple.

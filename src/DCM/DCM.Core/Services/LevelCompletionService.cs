@@ -11,18 +11,8 @@ public sealed class LevelCompletionService
         _save = save;
     }
 
-    public bool Complete(int levelIndex, float elapsed, bool endless, bool hasNextLevel)
+    public void Complete(int stage)
     {
-        if (endless)
-        {
-            if (_progress.RecordEndlessStage(levelIndex + 1)) _save();
-            return false;
-        }
-
-        var previousBest = _progress.GetBestTime(levelIndex);
-        var recorded = _progress.RecordTime(levelIndex, elapsed);
-        var unlocked = hasNextLevel && _progress.Unlock(levelIndex + 1);
-        if (recorded || unlocked) _save();
-        return elapsed < previousBest || previousBest >= float.MaxValue;
+        if (_progress.RecordEndlessStage(stage + 1)) _save();
     }
 }

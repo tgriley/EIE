@@ -6,42 +6,49 @@ using System.Collections.Generic;
 
 namespace DCM.Core.Entities;
 
-public class Player : ICamera, IDamageable, IHealable
+public class Player : IPlayerTarget, IHealable
 {
-    public double PosX { get; set; }
-    public double PosY { get; set; }
+    public const double FovPlane = 0.66;
+    public const float HurtDuration = 0.35f;
+
+    private const double WalkSpeed = 2.8;
+    private const double TurnSpeed = 2.0;
+    private const double MouseSens = 0.0015;
+    private const double WallMargin = 0.25;
+    private const double CameraRaisedSpeedFactor = 0.5;
+    private const float DamageCooldown = 0.5f;
+    private const int BumpDamage = 8;
+    private const float SprintRecoverFraction = 0.25f;
+    private const double DeathSpinSpeed = 4.0;
+
+    public double PosX { get; private set; }
+    public double PosY { get; private set; }
     public double DirX { get; private set; }
     public double DirY { get; private set; }
     public double PlaneX { get; private set; }
     public double PlaneY { get; private set; }
 
-    public int Health { get; private set; } = 100;
+    public int Health { get; private set; }
     public int MaxHealth => _buffs.MaxHealth;
     public bool IsDead => Health <= 0;
-    public float HurtTimer { get; private set; } = 0f;
+    public float HurtTimer { get; private set; }
     public bool ReachedExit { get; private set; }
     public (double X, double Y)? KillerPos { get; private set; }
-
-    public Action? OnDamaged { get; set; }
-    public Action? OnDied    { get; set; }
-
-    private float _damageCooldown = 0f;
-    private readonly PlayerBuffs _buffs;
 
     public float SprintStamina { get; private set; }
     public float SprintMax => _buffs.MaxStamina;
     public float MovementRatio { get; private set; }
+
+    public Action? OnDamaged { get; set; }
+    public Action? OnDied    { get; set; }
+
+    private readonly PlayerBuffs _buffs;
+    private float _damageCooldown;
     private bool _sprintDepleted;
 
-    public const double CollisionRadius = 0.35;
-
-    private const double MoveSpeed = 2.8;
-    private const double TurnSpeed = 2.0;
-    private const double MouseSens = 0.0015;
-
-    public Player(double posX, double posY, double angle, int startHealth = 100, PlayerBuffs? buffs = null)
+    public Player(double posX, double posY, double angle, int startHealth, PlayerBuffs buffs)
     {
-        _buffs = buffs ?? new PlayerBuffs();
+        _buffs = buffs;
         PosX = posX;
         PosY = posY;
         Health = Math.Clamp(startHealth, 0, _buffs.MaxHealth);
@@ -53,8 +60,8 @@ public class Player : ICamera, IDamageable, IHealable
     {
         DirX = Math.Cos(angle);
         DirY = Math.Sin(angle);
-        PlaneX = -Math.Sin(angle) * 0.66;
-        PlaneY = Math.Cos(angle) * 0.66;
+        PlaneX = -Math.Sin(angle) * FovPlane;
+        PlaneY = Math.Cos(angle) * FovPlane;
     }
 
     private void Rotate(double rad)
@@ -68,56 +75,33 @@ public class Player : ICamera, IDamageable, IHealable
         PlaneY = oldPlaneX * sinR + PlaneY * cosR;
     }
 
-    public void Update(float dt, IMap map, PlayerInput input, IReadOnlyList<Enemy>? enemies = null)
+    public void Update(float dt, IMap map, PlayerInput input, IReadOnlyList<Enemy> enemies)
     {
         if (HurtTimer > 0) HurtTimer -= dt;
         if (_damageCooldown > 0) _damageCooldown -= dt;
 
         var isSprinting = input.Running && !_sprintDepleted;
-        var baseSpeed = isSprinting ? _buffs.RunSpeed : MoveSpeed;
-        var speed = baseSpeed * (input.CameraRaising ? 0.5 : 1.0) * dt;
-        const double margin = 0.25;
+        var baseSpeed = isSprinting ? _buffs.RunSpeed : WalkSpeed;
+        var raiseFactor = input.CameraRaising ? CameraRaisedSpeedFactor : 1.0;
+        var speed = baseSpeed * raiseFactor * dt;
 
-        double newX = PosX, newY = PosY;
+        var forward = (input.MoveForward ? 1 : 0) - (input.MoveBack ? 1 : 0);
+        var strafe  = (input.StrafeRight ? 1 : 0) - (input.StrafeLeft ? 1 : 0);
+        var newX = PosX + (DirX * forward + PlaneX / FovPlane * strafe) * speed;
+        var newY = PosY + (DirY * forward + PlaneY / FovPlane * strafe) * speed;
 
-        if (input.MoveForward)
-        {
-            newX += DirX * speed;
-            newY += DirY * speed;
-        }
-
-        if (input.MoveBack)
-        {
-            newX -= DirX * speed;
-            newY -= DirY * speed;
-        }
-
-        if (input.StrafeLeft)
-        {
-            newX -= PlaneX / 0.66 * speed;
-            newY -= PlaneY / 0.66 * speed;
-        }
-
-        if (input.StrafeRight)
-        {
-            newX += PlaneX / 0.66 * speed;
-            newY += PlaneY / 0.66 * speed;
-        }
-
-        var xClear = !map.IsWall((int)(newX + Math.Sign(newX - PosX) * margin), (int)PosY);
+        var xClear = !map.IsWall((int)(newX + Math.Sign(newX - PosX) * WallMargin), (int)PosY);
         var xBlocker = xClear ? TouchingEnemy(newX, PosY, enemies) : null;
         if (xClear && xBlocker == null) PosX = newX;
-        else if (xBlocker != null) TakeDamage(8, xBlocker.PosX, xBlocker.PosY);
+        else if (xBlocker != null) TakeDamage(BumpDamage, xBlocker.PosX, xBlocker.PosY);
 
-        var yClear = !map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * margin));
+        var yClear = !map.IsWall((int)PosX, (int)(newY + Math.Sign(newY - PosY) * WallMargin));
         var yBlocker = yClear ? TouchingEnemy(PosX, newY, enemies) : null;
         if (yClear && yBlocker == null) PosY = newY;
-        else if (yBlocker != null) TakeDamage(8, yBlocker.PosX, yBlocker.PosY);
+        else if (yBlocker != null) TakeDamage(BumpDamage, yBlocker.PosX, yBlocker.PosY);
 
         var isMoving = input.MoveForward || input.MoveBack || input.StrafeLeft || input.StrafeRight;
-        MovementRatio = isMoving
-            ? (float)(baseSpeed / MoveSpeed) * (input.CameraRaising ? 0.5f : 1f)
-            : 0f;
+        MovementRatio = isMoving ? (float)(baseSpeed / WalkSpeed * raiseFactor) : 0f;
         if (isSprinting && isMoving)
         {
             SprintStamina = Math.Max(0f, SprintStamina - dt);
@@ -126,7 +110,7 @@ public class Player : ICamera, IDamageable, IHealable
         else
         {
             SprintStamina = Math.Min(SprintMax, SprintStamina + dt * _buffs.StaminaRegen);
-            if (_sprintDepleted && SprintStamina >= 0.25f * SprintMax) _sprintDepleted = false;
+            if (_sprintDepleted && SprintStamina >= SprintRecoverFraction * SprintMax) _sprintDepleted = false;
         }
 
         ReachedExit = map.IsExit((int)PosX, (int)PosY);
@@ -136,12 +120,12 @@ public class Player : ICamera, IDamageable, IHealable
         if (input.MouseDeltaX != 0) Rotate(input.MouseDeltaX * MouseSens);
     }
 
-    public void TakeDamage(int amount, double sourceX = 0, double sourceY = 0)
+    public void TakeDamage(int amount, double sourceX, double sourceY)
     {
         if (_damageCooldown > 0) return;
         Health = Math.Max(0, Health - amount);
-        HurtTimer = 0.35f;
-        _damageCooldown = 0.5f;
+        HurtTimer = HurtDuration;
+        _damageCooldown = DamageCooldown;
         if (Health <= 0) { KillerPos = (sourceX, sourceY); OnDied?.Invoke(); }
         else             OnDamaged?.Invoke();
     }
@@ -157,8 +141,7 @@ public class Player : ICamera, IDamageable, IHealable
         var dot   = DirX * tx + DirY * ty;
         if (dot >= 0.9999) return;
         var cross = DirX * ty - DirY * tx;
-        const double spinSpeed = 4.0;
-        var turn = Math.Min(spinSpeed * dt, Math.Acos(Math.Clamp(dot, -1.0, 1.0)));
+        var turn = Math.Min(DeathSpinSpeed * dt, Math.Acos(Math.Clamp(dot, -1.0, 1.0)));
         Rotate(Math.Sign(cross) >= 0 ? turn : -turn);
     }
 
@@ -167,18 +150,10 @@ public class Player : ICamera, IDamageable, IHealable
         Health = Math.Min(_buffs.MaxHealth, Health + amount);
     }
 
-    private static Enemy? TouchingEnemy(double x, double y, IReadOnlyList<Enemy>? enemies)
+    private static Enemy? TouchingEnemy(double x, double y, IReadOnlyList<Enemy> enemies)
     {
-        if (enemies == null) return null;
-        const double minDist = CollisionRadius + Enemy.CollisionRadius;
-        const double minDistSq = minDist * minDist;
         foreach (var e in enemies)
-        {
-            if (e.IsDead) continue;
-            var dx = x - e.PosX;
-            var dy = y - e.PosY;
-            if (dx * dx + dy * dy < minDistSq) return e;
-        }
+            if (Collision.EntitiesOverlap(x, y, e.PosX, e.PosY)) return e;
         return null;
     }
 }
